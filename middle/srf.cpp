@@ -66,12 +66,13 @@ short SRF::validate() {
 	return _mean/(SE_DATA_BUFFER_SIZE-2);
 }
 
-void SRF::read_it(unsigned int msec) {
+short SRF::read_it(unsigned int msec) {
 	data[data_pos] = min<short>(read_measure(),MAX_DISTANCE);
 	data_pos = (data_pos+1)%SE_DATA_BUFFER_SIZE;
 	old_mean = mean; old_tv_msec = tv_msec;
 	mean = validate();
 	tv_msec = msec;
+	return mean;
 }
 
 void SRF::debug_read(unsigned int msec, unsigned short val) {

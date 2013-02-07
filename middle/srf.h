@@ -14,10 +14,12 @@
 
 class SRF {
 public:
-	SRF(unsigned short addr);
-	void reset();
-	
-	void read_it(unsigned int msec);
+	SRF(unsigned short addr);					// Konstruktor
+	void measure();							// Fordert den Sensor auf, eine Messung zu starten 
+	short read_it(unsigned int msec);				// Fordert den Sensor auf, die Daten zu lesen
+
+	void reset();							// Löscht die gespeicherten Daten
+									// !!! Filter wird für die nächsten SE_DATA_BUFFER_SIZE-Messungen falsche Werte liefern!
 	void debug_read(unsigned int msec, unsigned short val);
 	
 	unsigned short 	get_msec() 	{return tv_msec;}
@@ -27,8 +29,7 @@ public:
 	unsigned short 	get_data()	{return data[(data_pos-1+SE_DATA_BUFFER_SIZE)%SE_DATA_BUFFER_SIZE];}
 	short 		get_mean_diff()	{return (short)(mean - old_mean);}
 	short 		get_msec_diff()	{return (short)(tv_msec - old_tv_msec);}
-	enum srf_error 	get_error()	{return error;}
-	void 		reset_error()	{error = SRF_OK;}
+	enum srf_error 	get_error()	{srf_error tmp = error; error = SRF_OK; return tmp;}
 
 private:
 	unsigned short _addr;
@@ -46,7 +47,6 @@ private:
 	
 	short read_measure();
 	short validate();
-	void measure ();
 };
 
 #endif

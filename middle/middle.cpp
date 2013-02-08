@@ -17,7 +17,7 @@ void schedule_add(unsigned int plus, enum sched_tasks current_task, short param)
 			scheduler[i] = new_task;
 			#if DEBUG_LEVEL > 2
 			printf("%u SCHEDULE: Neuer Task hinzugefuegt: %u %d %d\n", get_current_millis(), new_task.tv_msec, new_task.task, new_task.param);
-			#endif			
+			#endif
 			break;
 		} else if (i == MAX_TASKS-1) {
 			if(WARNINGS){perror("SCHEDULE_ADD: Buffer voll, Task konnte nicht eingefuegt werden.");}
@@ -36,6 +36,12 @@ void send_ext_ctrl() {
 	#endif	
 }
 
+int main () {
+	setup();
+	while(1) loop();
+	return 0;
+}
+
 /*Initialisierung*/
 void setup() {
 	/*Oeffnen der seriellen Schnitstelle TTY_DEVICE*/
@@ -51,13 +57,18 @@ void setup() {
 	if (tcsetattr(tty_fd, TCSAFLUSH, &attr) != 0){perror("SETUP: tcsetattr() fehlgeschlagen"); exit(1);}
 	first_heartbeat = 0;	
 
+	srf_fd = open(SRF_DEVICE, O_RDWR);
+	if (srf_fd == -1) {perror("SETUP: " SRF_DEVICE "kann nicht geoeffnet werden."); exit(1);}
+	
+	std::cout << "Setup srf_fd: " << srf_fd << "\n";
+	
 	/*Einstellen der anfaenglichen Messgeschwindigkeiten, Erzeugen der Sensoren*/
 	for (int i = 0; i < SE_COUNT; i++) {
 		srf_speed[i] = SRF_SPEED;
-		srf.push_back(SE0_ADDRESS + i);
+		srf.push_back(SRF((SE0_ADDRESS + i),srf_fd));
 		nvalue[i] = 0;
 	}
-
+	srf[0].measure();
 	/*Initialisierung des Schedulers*/
 	gettimeofday(&tv_start,NULL);
 	for (int i = 0; i < MAX_TASKS; i++) 	scheduler[i].task = NOTHING;
@@ -74,7 +85,7 @@ void setup() {
 	fd_113 = fopen(strcat(tmp_dir,"/113"), "a"); fprintf(fd_113,"#TS\tdata\tmean\n"); strcpy(tmp_dir,log_dir);
 	fd_114 = fopen(strcat(tmp_dir,"/114"), "a"); fprintf(fd_114,"#TS\tdata\tmean\n"); strcpy(tmp_dir,log_dir);
 	fd_115 = fopen(strcat(tmp_dir,"/115"), "a"); fprintf(fd_115,"#TS\tdata\tmean\n"); strcpy(tmp_dir,log_dir);
-	fd_data= fopen(strcat(tmp_dir,"/data"),"a"); fprintf(fd_data,"#TS\troll\tpitch\tyaw\tthrust\theading\tstate\txacc\tyacc\n"); strcpy(tmp_dir,log_dir);
+	fd_data= fopen(strcat(tmp_dir,"/data"),"a"); fprintf(fd_data,"#TS\troll\tpitch\tyaw\theading\tstate\txacc\tyacc\n"); strcpy(tmp_dir,log_dir);
 	#endif
 
 	current_heading = 0;	
@@ -86,7 +97,7 @@ void setup() {
 	xacc = 0; yacc = 0;
 	
 	/*Auskommentieren, damit regelmäßig Daten auf das Terminal geschrieben werden*/
-	//schedule_add(0,SHOW_ME,0);
+	schedule_add(0,SHOW_ME,0);
 }
 
 /*Mainloop*/
@@ -99,12 +110,13 @@ void loop() {
 			case NOTHING: break;
 			case MEASURE:
 				/*Fordert den als Parameter uebergebenen Sensor auf eine Messung zu starten und bestimmt den Lese-Zeitpunkt*/			
-				srf[scheduler[i].param].measure();
+				srf[scheduler[i].param - SE0_ADDRESS].measure();
 				schedule_add(srf_speed[scheduler[i].param - SE0_ADDRESS], READ_MEASURE, scheduler[i].param);
+				scheduler[i].task = NOTHING;
 				break;
 			case READ_MEASURE:
 				/*Liest die Messdaten des als Parameter uebergebenen Sensors aus und veranlasst erneute Messung*/
-				srf[scheduler[i].param].read_it(get_current_millis());
+				srf[scheduler[i].param - SE0_ADDRESS].read_it(get_current_millis());
 				schedule_add(0, MEASURE, scheduler[i].param);
 				if(state == HOLD_STILL || state == MEASURE_ENVIRONMENT) nvalue[scheduler[i].param - SE0_ADDRESS] = 1;
 				new_value = scheduler[i].param;
@@ -117,7 +129,8 @@ void loop() {
 				else if (scheduler[i].param == SE2_ADDRESS) 	fd = fd_114;
 				else						fd = fd_115;
 				fprintf(fd,"%u\t%u\t%u\n", srf[scheduler[i].param - SE0_ADDRESS].get_msec(), srf[scheduler[i].param - SE0_ADDRESS].get_data(), srf[scheduler[i].param - SE0_ADDRESS].get_mean());
-				#endif*/			
+				#endif
+				scheduler[i].task = NOTHING;
 				break;
 			case SAVE_LOG:
 				/*Sichert die bisher geloggten Daten*/
@@ -135,6 +148,7 @@ void loop() {
 				fd_data= fopen(strcat(tmp_dir,"/data"),"a"); strcpy(tmp_dir,log_dir);
 				schedule_add(LOG_SPEED,SAVE_LOG,0);
 				#endif
+				scheduler[i].task = NOTHING;
 				break;   
 			case SAVE_SLAM:
 				/*Sichert die bisher geloggten als ppm*/
@@ -146,6 +160,7 @@ void loop() {
 					schedule_add(SLAM_SPEED,SAVE_SLAM,0);
 				}
 				#endif
+				scheduler[i].task = NOTHING;
 				break;
 			case CHECK_STILL:
 				/*Prueft auf Stillstand des Copters*/
@@ -159,20 +174,22 @@ void loop() {
 				} else {
 					schedule_add(CHECK_STILL_SPEED,CHECK_STILL,0);
 				}
+				scheduler[i].task = NOTHING;
 				break;
 			case CHANGE_STATE:
 				/*Ändert den aktuellen Status zum als Parameter übergebenen Status*/
 				state = (states)scheduler[i].param;
+				scheduler[i].task = NOTHING;
 				break;
 			case SHOW_ME:
 				/*Schreibt Messwerte und Neigungswinkel auf das Terminal*/
-				if (roll > 9 || roll < 0) 	printf("roll: %d\tpitch: %d \tSE0: %d\tSE1: %d\tSE2: %d\tSE3:%d\tthrust:%d\tSE4:%d\n", roll, pitch, mean[0].distance, mean[1].distance, mean[2].distance, mean[3].distance, thrust, mean[4].distance);
-				else 				printf("roll: %d\t\tpitch: %d \tSE0: %d\tSE1: %d\tSE2: %d\tSE3:%d\tthrust:%d\tSE4:%d\n", roll, pitch, mean[0].distance, mean[1].distance, mean[2].distance, mean[3].distance, thrust, mean[4].distance);
+				if (roll > 9 || roll < 0) 	printf("roll: %d\tpitch: %d \tSE0: %d\tSE1: %d\tSE2: %d\tSE3:%d\tstate:%d\n", roll, pitch, srf[0].get_mean(), srf[1].get_mean(), srf[2].get_mean(), srf[3].get_mean(),(short)state);
+				else 				printf("roll: %d\t\tpitch: %d \tSE0: %d\tSE1: %d\tSE2: %d\tSE3:%d\tstate%d\n", roll, pitch, srf[0].get_mean(), srf[1].get_mean(), srf[2].get_mean(), srf[3].get_mean(),(short)state);
 				schedule_add(100,SHOW_ME,0);
+				scheduler[i].task = NOTHING;
 				break;
 			default: if(WARNINGS){perror("LOOP: Unbekannte Aufgabe im Scheduler.");} break; 
 		}
-		scheduler[i].task = NOTHING;
 	}
 
 	/*Auswertung der Daten, die an der seriellen Schnittstelle anliegen.*/
@@ -195,12 +212,12 @@ void loop() {
 			#if DEBUG_LEVEL > 1
 			printf("%u Mavlinkpaket empfangen: %d\n", get_current_millis(), msg.msgid);			
 			#endif			
-			printf("%u Mavlinkpaket empfangen: %d\n", get_current_millis(), msg.msgid);
+			//printf("%u Mavlinkpaket empfangen: %d\n", get_current_millis(), msg.msgid);
 			
 			switch (msg.msgid) {
 				case MAVLINK_MSG_ID_HEARTBEAT:
 					/*Beim Empfang des ersten Heartbeats wird zunaechst ein eventuell vorhandener Datenstream gekuendigt und ein neuer Datenstream abonnemiert*/
-					if (0 && /*TODO ENTFERNEN!*/!first_heartbeat) {
+					if (!first_heartbeat) {
 						first_heartbeat = 1;
 						mavlink_message_t smsg;
 						uint8_t sbuf[MAVLINK_MAX_PACKET_LEN];
@@ -228,14 +245,16 @@ void loop() {
 					yacc = scaled_imu.yacc;
 					slam_insert_acc(xacc,yacc,current_heading,get_current_millis());
 					break;
-				case MAVLINK_MSG_ID_RC_CHANNELS_SCALED:
+				case MAVLINK_MSG_ID_RC_CHANNELS_RAW:
 					/*Prüft, ob eine Umstellung auf externe Kontrolle erfolgt ist*/
 					if (state != IDLE) {break;}
-					mavlink_rc_channels_scaled_t rc;
-					mavlink_msg_rc_channels_scaled_decode(&msg,&rc);
-					if (rc.chan5_scaled > MODE_SWITCH_RANGE_UP && rc.chan5_scaled < MODE_SWITCH_RANGE_DOWN) {
-						schedule_add(CHANGE_STATE,INIT,0);
-						schedule_add(CHANGE_STATE,HOLD_STILL,2000);
+					mavlink_rc_channels_raw_t rc;
+					mavlink_msg_rc_channels_raw_decode(&msg,&rc);
+					//std::cout << "RC_CH5_Raw: " << rc.chan5_raw << "\n";
+					if (rc.chan5_raw < MODE_SWITCH_RANGE_UP && rc.chan5_raw > MODE_SWITCH_RANGE_DOWN) {
+						std::cout << "Change state from IDLE to INIT.\n";
+						schedule_add(0,CHANGE_STATE,(int)INIT);
+						schedule_add(2000,CHANGE_STATE,(int)HOLD_STILL);
 					}
 				default: break;
 			}
@@ -243,7 +262,7 @@ void loop() {
 	}		
 
 	/*Berechnung der vorgeschlagenen Werte fuer roll, pitch und yaw an Hand der neuen Messwerte*/
-	if (!new_value && !new_heading) {/*Wenn keine neuen Daten vorhanden sind -> Abarbeitung überspringen*/continue;}
+	if (!new_value && !new_heading) {/*Wenn keine neuen Daten vorhanden sind -> Abarbeitung überspringen*/return;}
 	switch (state) {
 		case IDLE: /*Wartet auf Aktivierung der externen Kontrolle*/ break;
 		case INIT:
@@ -255,6 +274,7 @@ void loop() {
 			#endif
 			for (int i = 0; i < SE_COUNT; i++) schedule_add(0, MEASURE, SE0_ADDRESS + i);
 			slam_init(current_heading,get_current_millis());
+			state = DELAY;
 			break;
 		case HOLD_STILL:
 			/*Veranlasst den Copter auf Grundlage der Änderungen der Messwerte still zu stehen*/

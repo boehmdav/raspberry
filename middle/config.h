@@ -19,23 +19,23 @@
 #define SE2_ADDRESS		114		// Adressen muessen aufeinanderfolgen
 #define SE3_ADDRESS		115
 
-#define EXT_CTRL		0		// Schaltet die externe Kontrolle an/aus
+#define EXT_CTRL		1		// Schaltet die externe Kontrolle an/aus
 #define STD_FACTOR		2		// Faktor fuer die maximal erlaubte Abweichung von der Standardabweichung
 #define MIN_STD			10		// Kleinste erlaubte Abweichung von der Standardabweichung
 
 #define MAX_DISTANCE		600		// Groeszter moeglicher Messwert
-#define MAX_ROLL		200		// Groeszter moeglicher Wert fuer roll		
-#define MAX_PITCH		200		// Groeszter moeglicher Wert fuer pitch
+#define MAX_ROLL		600		// Groeszter moeglicher Wert fuer roll		
+#define MAX_PITCH		MAX_ROLL	// Groeszter moeglicher Wert fuer pitch
 
 #define CONST_YAW		20		// Konstante Drehgeschwindigkeit 
 #define HTM_DELAY_TIME		500		// Zeit zwischen Statuswechsel von HEAD_TO_MIDDLE zu HOLD_STILL in ms
 
-#define HOLD_STILL_ROLL_KP	20		// Verstaerkung
-#define HOLD_STILL_ROLL_TN	0		// Nachtsellzeit
-#define HOLD_STILL_ROLL_TV	3		// Vorhaltzeit
-#define HOLD_STILL_PITCH_KP	20		// Verstaerkung
-#define HOLD_STILL_PITCH_TN	0		// Nachstellzeit
-#define HOLD_STILL_PITCH_TV	3		// Vorhaltzeit
+#define HOLD_STILL_ROLL_KP	20			// Verstaerkung
+#define HOLD_STILL_ROLL_TN	0			// Nachtsellzeit
+#define HOLD_STILL_ROLL_TV	3			// Vorhaltzeit
+#define HOLD_STILL_PITCH_KP	HOLD_STILL_ROLL_KP	// Verstaerkung
+#define HOLD_STILL_PITCH_TN	HOLD_STILL_ROLL_TN	// Nachstellzeit
+#define HOLD_STILL_PITCH_TV	HOLD_STILL_ROLL_TV	// Vorhaltzeit
 
 #define HOLD_STILL_MAX_XACC	100		// Maximal erlaubte Beschleunigung auf der x-Achse in mg
 #define HOLD_STILL_MAX_YACC	100		// Maximal erlaubte Beschleunigung auf der y-Achse in mg
@@ -49,7 +49,7 @@
 #define DEBUG_LEVEL		0		// Level fuer die Menge der Debug-Informationen
 #define LOG			1		// Schaltet das Loggin an/aus
 #define LOG_SPEED		1000		// Zeitspanne zwischen zwei Sicherungen der Log-Daten in ms
-#define WARNINGS		0		// Schaltet Warnungen an/aus
+#define WARNINGS		1		// Schaltet Warnungen an/aus
 
 #define SLAM_SPEED		5000
 

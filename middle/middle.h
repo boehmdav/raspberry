@@ -20,7 +20,7 @@
 #include "config.h"
 #include "slam.h"
 #include "pid.h"
-#include 
+#include "srf.h" 
 
 void measure(short address);
 unsigned int get_current_millis();
@@ -64,12 +64,6 @@ char log_dir[32];
 
 PID pid_roll(HOLD_STILL_ROLL_KP,HOLD_STILL_ROLL_TN,HOLD_STILL_ROLL_TV,0);
 PID pid_pitch(HOLD_STILL_PITCH_KP,HOLD_STILL_PITCH_TN,HOLD_STILL_PITCH_TV,0);
-
-int main () {
-	setup();
-	while(1) loop();
-	return 0;
-}
 
 template <typename T>
 T max(T a, T b) {

@@ -14,7 +14,7 @@
 
 class SRF {
 public:
-	SRF(unsigned short addr);					// Konstruktor
+	SRF(unsigned short addr, int srf_fd);					// Konstruktor
 	void measure();							// Fordert den Sensor auf, eine Messung zu starten 
 	short read_it(unsigned int msec);				// Fordert den Sensor auf, die Daten zu lesen
 
@@ -40,7 +40,7 @@ private:
 	unsigned short old_mean;
 	unsigned int   old_tv_msec;
 	
-	int srf_fd;
+	int _srf_fd;
 	enum srf_error error;
 	short data[SE_DATA_BUFFER_SIZE];
 	short data_pos;

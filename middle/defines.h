@@ -41,8 +41,13 @@ struct sched_task {
 
 enum states {HOLD_STILL, MEASURE_ENVIRONMENT, HEAD_TO_MIDDLE, DELAY, IDLE, INIT};
 
-#define MODE_SWITCH_RANGE_UP	0
-#define MODE_SWITCH_RANGE_DOWN	0
+/*
+ * Position oben: 	0 -1230
+ * Position mittel:	1491-1620
+ * Position unten:	1750 - Inf
+ */
+#define MODE_SWITCH_RANGE_DOWN	1491
+#define MODE_SWITCH_RANGE_UP	1620
 
 enum srf_error {SRF_OK = 0,SRF_MEASURE_IOCTL,SRF_MEASURE_WRITE,SRF_READ_IOCTL,SRF_READ_WRITE,SRF_READ_READ,SRF_INIT_OPEN};
 

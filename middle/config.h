@@ -3,7 +3,7 @@
 
 #define TTY_DEVICE		"/dev/ttyAMA0"	// Serielle Schnittstelle
 #define TTY_DEVICE_SPEED	B57600		// Uebertragungsrate in Baud
-#define DATA_STREAM_SPEED	5		// Geschwindigkeit des Datenstreams in Hz
+#define DATA_STREAM_SPEED	50		// Geschwindigkeit des Datenstreams in Hz (Theoretisches Maximum: 50Hz, Praktisches Maximum ~15Hz)
 
 #define TARGET_SYSTEM		1		// Zielsystem fuer Mavlink-Pakete
 #define TARGET_COMPONENT	1		// Zielkomponente fuer Mavlink-Pakete
@@ -19,7 +19,7 @@
 #define SE2_ADDRESS		114		// Adressen muessen aufeinanderfolgen
 #define SE3_ADDRESS		115
 
-#define EXT_CTRL		1		// Schaltet die externe Kontrolle an/aus
+#define EXT_CTRL		0		// Schaltet die externe Kontrolle an/aus
 #define STD_FACTOR		2		// Faktor fuer die maximal erlaubte Abweichung von der Standardabweichung
 #define MIN_STD			10		// Kleinste erlaubte Abweichung von der Standardabweichung
 

@@ -36,6 +36,21 @@ void send_ext_ctrl() {
 	#endif	
 }
 
+void request_data_stream(short stream_id, short mav_speed, unsigned char mav_mode) {
+	//std::cout << "ID:" << stream_id << " Speed:" << mav_speed << " Mode:" << (int)mav_mode << "\n";
+	mavlink_message_t smsg;
+	uint8_t sbuf[MAVLINK_MAX_PACKET_LEN];
+	mavlink_msg_request_data_stream_pack(0, MAV_COMP_ID_IMU, &smsg, 1, 0, stream_id, mav_speed, mav_mode);
+	uint16_t len = mavlink_msg_to_send_buffer(sbuf, &smsg);
+	if (write(tty_fd, sbuf, len) != len) {perror("LOOP: Es konnte kein Datenstream abbonniert werden."); exit(1);}
+}
+
+/*Stoppt die aktiven Datenstreams und beendet das Programm, wenn SIGINT gesendet wird*/
+void signal_callback_handler(int signum) {
+   request_data_stream(MAV_DATA_STREAM_ALL,0,0);
+   exit(signum);
+}
+
 int main () {
 	setup();
 	while(1) loop();
@@ -60,15 +75,16 @@ void setup() {
 	srf_fd = open(SRF_DEVICE, O_RDWR);
 	if (srf_fd == -1) {perror("SETUP: " SRF_DEVICE "kann nicht geoeffnet werden."); exit(1);}
 	
-	std::cout << "Setup srf_fd: " << srf_fd << "\n";
-	
 	/*Einstellen der anfaenglichen Messgeschwindigkeiten, Erzeugen der Sensoren*/
 	for (int i = 0; i < SE_COUNT; i++) {
 		srf_speed[i] = SRF_SPEED;
 		srf.push_back(SRF((SE0_ADDRESS + i),srf_fd));
 		nvalue[i] = 0;
 	}
-	srf[0].measure();
+
+	/*signal handler für SIGINT (Strg+C) registrieren*/
+	signal(SIGINT, signal_callback_handler);
+	
 	/*Initialisierung des Schedulers*/
 	gettimeofday(&tv_start,NULL);
 	for (int i = 0; i < MAX_TASKS; i++) 	scheduler[i].task = NOTHING;
@@ -96,8 +112,10 @@ void setup() {
 	for(int i = 0; i < 360; i++) env[i] = 0;
 	xacc = 0; yacc = 0;
 	
+	init_state = 0;
+	
 	/*Auskommentieren, damit regelmäßig Daten auf das Terminal geschrieben werden*/
-	schedule_add(0,SHOW_ME,0);
+	//schedule_add(0,SHOW_ME,0);
 }
 
 /*Mainloop*/
@@ -184,7 +202,7 @@ void loop() {
 			case SHOW_ME:
 				/*Schreibt Messwerte und Neigungswinkel auf das Terminal*/
 				if (roll > 9 || roll < 0) 	printf("roll: %d\tpitch: %d \tSE0: %d\tSE1: %d\tSE2: %d\tSE3:%d\tstate:%d\n", roll, pitch, srf[0].get_mean(), srf[1].get_mean(), srf[2].get_mean(), srf[3].get_mean(),(short)state);
-				else 				printf("roll: %d\t\tpitch: %d \tSE0: %d\tSE1: %d\tSE2: %d\tSE3:%d\tstate%d\n", roll, pitch, srf[0].get_mean(), srf[1].get_mean(), srf[2].get_mean(), srf[3].get_mean(),(short)state);
+				else 				printf("roll: %d\t\tpitch: %d \tSE0: %d\tSE1: %d\tSE2: %d\tSE3:%d\tstate%d\n", roll, pitch, srf[0].get_mean(), srf[1].get_mean(), srf[2].get_mean(), srf[3].get_mean(),(short)state	);
 				schedule_add(100,SHOW_ME,0);
 				scheduler[i].task = NOTHING;
 				break;
@@ -219,14 +237,8 @@ void loop() {
 					/*Beim Empfang des ersten Heartbeats wird zunaechst ein eventuell vorhandener Datenstream gekuendigt und ein neuer Datenstream abonnemiert*/
 					if (!first_heartbeat) {
 						first_heartbeat = 1;
-						mavlink_message_t smsg;
-						uint8_t sbuf[MAVLINK_MAX_PACKET_LEN];
-						mavlink_msg_request_data_stream_pack(0, 0, &smsg, 1, MAV_COMP_ID_ALL, 0, DATA_STREAM_SPEED, 0);
-						uint16_t len = mavlink_msg_to_send_buffer(sbuf, &smsg);
-						if (write(tty_fd, sbuf, len) != len) {perror("LOOP: Es konnte kein Datenstream abbonniert werden."); exit(1);}
-						mavlink_msg_request_data_stream_pack(0, 0, &smsg, 1, MAV_COMP_ID_ALL, 0, DATA_STREAM_SPEED, 1);
-						len = mavlink_msg_to_send_buffer(sbuf, &smsg);
-						if (write(tty_fd, sbuf, len) != len) {perror("LOOP: Es konnte kein Datenstream abbonniert werden."); exit(1);}
+						request_data_stream(MAV_DATA_STREAM_ALL,0,0);
+						request_data_stream(MAV_DATA_STREAM_RC_CHANNELS,DATA_STREAM_SPEED,1);
 					}
 					break;
 				case MAVLINK_MSG_ID_VFR_HUD:
@@ -237,13 +249,14 @@ void loop() {
 					current_heading = hud_data.heading;
 					new_heading = 1;
 					break;
-				case MAVLINK_MSG_ID_SCALED_IMU:
-					/*Speichert die skalierten Beschleunigungen auf der x- und y-Achse*/
-					mavlink_scaled_imu_t scaled_imu;
-					mavlink_msg_scaled_imu_decode(&msg,&scaled_imu);
-					xacc = scaled_imu.xacc;
-					yacc = scaled_imu.yacc;
-					slam_insert_acc(xacc,yacc,current_heading,get_current_millis());
+				case MAVLINK_MSG_ID_RAW_IMU:
+					/*Speichert die Beschleunigungen auf der x- und y-Achse*/
+					mavlink_raw_imu_t raw_imu;
+					mavlink_msg_raw_imu_decode(&msg,&raw_imu);
+					xacc = raw_imu.xacc;
+					yacc = raw_imu.yacc;
+					//slam_insert_acc(xacc,yacc,current_heading,get_current_millis());
+					std::cout << "xacc: " << xacc << " yacc: " << yacc << "\n";
 					break;
 				case MAVLINK_MSG_ID_RC_CHANNELS_RAW:
 					/*Prüft, ob eine Umstellung auf externe Kontrolle erfolgt ist*/
@@ -251,10 +264,16 @@ void loop() {
 					mavlink_rc_channels_raw_t rc;
 					mavlink_msg_rc_channels_raw_decode(&msg,&rc);
 					//std::cout << "RC_CH5_Raw: " << rc.chan5_raw << "\n";
-					if (rc.chan5_raw < MODE_SWITCH_RANGE_UP && rc.chan5_raw > MODE_SWITCH_RANGE_DOWN) {
-						std::cout << "Change state from IDLE to INIT.\n";
+					if (init_state && rc.chan5_raw < MODE_SWITCH_RANGE_UP && rc.chan5_raw > MODE_SWITCH_RANGE_DOWN) {
+						std::cout << "State changed from IDLE to INIT.\n";
 						schedule_add(0,CHANGE_STATE,(int)INIT);
 						schedule_add(2000,CHANGE_STATE,(int)HOLD_STILL);
+						request_data_stream(MAV_DATA_STREAM_RC_CHANNELS,0,0);
+						request_data_stream(MAV_DATA_STREAM_EXTRA2/*VFR_HUD*/,DATA_STREAM_SPEED,1);
+						request_data_stream(MAV_DATA_STREAM_RAW_SENSORS,DATA_STREAM_SPEED,1);
+					}
+					if(rc.chan5_raw > MODE_SWITCH_RANGE_UP || rc.chan5_raw < MODE_SWITCH_RANGE_DOWN) {
+						init_state = 1;
 					}
 				default: break;
 			}
@@ -299,9 +318,10 @@ void loop() {
 		case MEASURE_ENVIRONMENT:
 			/*Vermisst die Umgebung durch eine Drehung um 360/SE_COUNT Grad*/
 			/*TODO: Entfernen*/state = HOLD_STILL; break;
-			if (abs(xacc) > HOLD_STILL_MAX_XACC || abs(yacc) > HOLD_STILL_MAX_YACC) {/*Wurde der Copter zu stark bewegt: Abbruch*/state = HOLD_STILL; break;}
+			if (abs(xacc) > HOLD_STILL_MAX_XACC || abs(yacc) > HOLD_STILL_MAX_YACC) {/*Wurde der Copter zu stark bewegt: Abbruch*/state = HOLD_STILL; std::cout << "State changed to HEAD_TO_MIDDLE\n"; break;}
 			if (first_heading == -1) {
 				/*Speichert die anfaengliche Ausrichtung und veranlasst den Copter sich zu drehen*/
+				std::cout << "State changed to MEASURE_ENVIRONMENT\n";
 				slam_refresh_pos(get_current_millis());
 				first_heading = current_heading;
 				roll = 0; pitch = 0; rotation = 0; yaw = CONST_YAW;
@@ -327,6 +347,7 @@ void loop() {
 		case HEAD_TO_MIDDLE:
 			/*Berechnet an Hand der vermessenen Umgebung vorgeschlagene Werte um den Mittelpunkt zu erreichen*/
 			if(1) {
+				std::cout << "State changed to HEAD_TO_MIDDLE\n";
 				slam_refresh_pos(get_current_millis());
 				/*printf("First_heading:%d\n",first_heading);
 				for (int i = 0; i < 90; i++) {
@@ -347,6 +368,7 @@ void loop() {
 				state = DELAY;
 				schedule_add(HTM_DELAY_TIME, CHANGE_STATE, HOLD_STILL);
 				send_ext_ctrl();
+				std::cout << "State changed to HOLD_STILL\n";
 				//printf("%d\t%d\n",roll,pitch);
 			}
 		break;

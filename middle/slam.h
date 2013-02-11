@@ -17,7 +17,7 @@ void slam_insert_measurement(unsigned short measurement, 	// Fügt einen Messwer
 								// erzeugt wurde
 
 void slam_insert_acc(int xa, int ya, unsigned short heading, 	// Speichert Beschleunigungswerte bis zum Aufruf von slam_refresh_pos
-		     unsigned int tv_msec);
+			unsigned int tv_msec);
 void slam_refresh_pos(unsigned short tv_msec);			// Berechnet an Hand der Beschleunigungswerte eine neue Position und fügt das temporäre Grid an der neuen Position ein
 
 #endif

@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <vector>
+#include <signal.h>
 #include "../../mavlink_huch/huch/mavlink.h"
 
 #include "defines.h"
@@ -64,6 +65,8 @@ char log_dir[32];
 
 PID pid_roll(HOLD_STILL_ROLL_KP,HOLD_STILL_ROLL_TN,HOLD_STILL_ROLL_TV,0);
 PID pid_pitch(HOLD_STILL_PITCH_KP,HOLD_STILL_PITCH_TN,HOLD_STILL_PITCH_TV,0);
+
+unsigned char init_state;
 
 template <typename T>
 T max(T a, T b) {

@@ -3,14 +3,19 @@
 
 #define COPTER_RADIUS		50	//Radius des Copters in cm
 
+#define ENABLED			1
+#define DISABLED		0
+#define ENABLE			ENABLED
+#define DISABLE			DISABLED
+
 struct position {
 	int x;
 	int y;
 };
 
 #define ENV_ITEM_UNDEF		0
-#define ENV_ITEM_SOLID		1
-#define ENV_ITEM_UNSOLID	2
+#define ENV_ITEM_UNSOLID	1
+#define ENV_ITEM_SOLID		2
 #define ENV_ITEM_APPROX		3
 #define ENV_ITEM_PATH		4
 #define ENV_ITEM_ERROR		7
@@ -39,7 +44,7 @@ struct sched_task {
 	short 			param;
 };
 
-enum states {HOLD_STILL, MEASURE_ENVIRONMENT, HEAD_TO_MIDDLE, DELAY, IDLE, INIT};
+enum states {HOLD_STILL, MEASURE_ENVIRONMENT, HEAD_TO_MIDDLE, DELAY, IDLE, INIT, HTM_DELAY};
 
 /*
  * Position oben: 	0 -1230

@@ -42,6 +42,7 @@ unsigned char srf_speed[SE_COUNT];
 std::vector<SRF> srf;
 
 unsigned char nvalue[SE_COUNT];
+unsigned char nvalue2[SE_COUNT];
 
 unsigned char still;
 int16_t xacc, yacc;

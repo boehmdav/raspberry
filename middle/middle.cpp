@@ -80,6 +80,7 @@ void setup() {
 		srf_speed[i] = SRF_SPEED;
 		srf.push_back(SRF((SE0_ADDRESS + i),srf_fd));
 		nvalue[i] = 0;
+		nvalue2[i] = 0;
 	}
 
 	/*signal handler für SIGINT (Strg+C) registrieren*/
@@ -114,8 +115,8 @@ void setup() {
 	
 	init_state = 0;
 	
-	/*Auskommentieren, damit regelmäßig Daten auf das Terminal geschrieben werden*/
-	//schedule_add(0,SHOW_ME,0);
+	/*Einkommentieren, damit regelmäßig Daten auf das Terminal geschrieben werden*/
+	schedule_add(0,SHOW_ME,0);
 }
 
 /*Mainloop*/
@@ -136,9 +137,20 @@ void loop() {
 				/*Liest die Messdaten des als Parameter uebergebenen Sensors aus und veranlasst erneute Messung*/
 				srf[scheduler[i].param - SE0_ADDRESS].read_it(get_current_millis());
 				schedule_add(0, MEASURE, scheduler[i].param);
-				if(state == HOLD_STILL || state == MEASURE_ENVIRONMENT) nvalue[scheduler[i].param - SE0_ADDRESS] = 1;
+				if(state == HOLD_STILL || state == MEASURE_ENVIRONMENT) {
+					nvalue[scheduler[i].param - SE0_ADDRESS] = 1;
+				}
+				/*if (state == HOLD_STILL || state == HEAD_TO_MIDDLE || state = HTM_DELAY) {
+					nvalue2[scheduler[i].param - SE0_ADDRESS] = 1;
+				}*/
 				new_value = scheduler[i].param;
 				
+				/*if (state == HOLD_STILL || state ==  HEAD_TO_MIDDLE || state == HTM_DELAY) {
+					if (nvalue2[0] == 1 && nvalue2[1] == 1 && nvalue2[2] == 1 && nvalue2[3] == 1) {
+						slam_insert_v((srf[0].get_cm_per_s() + srf[1].get_cm_per_s())/2,(srf[2].get_cm_per_s() + srf[3].get_cm_per_s())/2,current_heading,get_current_millis());
+						nvalue2[0] = 0; nvalue2[1] = 0; nvalue2[2] = 0; nvalue2[3] = 0;
+					}
+				}*/
 				/*Speichert den gelesenen Messwert in der entsprechenden Log-Datei*/
 				#if LOG > 0
 				FILE *fd;
@@ -168,18 +180,6 @@ void loop() {
 				#endif
 				scheduler[i].task = NOTHING;
 				break;   
-			case SAVE_SLAM:
-				/*Sichert die bisher geloggten als ppm*/
-				#if LOG > 0
-				if (state == MEASURE_ENVIRONMENT) {
-					schedule_add(100,SAVE_SLAM,0);
-				} else {
-					slam_draw_image("slam.ppm");
-					schedule_add(SLAM_SPEED,SAVE_SLAM,0);
-				}
-				#endif
-				scheduler[i].task = NOTHING;
-				break;
 			case CHECK_STILL:
 				/*Prueft auf Stillstand des Copters*/
 				if (still && state == HOLD_STILL) {
@@ -256,7 +256,7 @@ void loop() {
 					xacc = raw_imu.xacc;
 					yacc = raw_imu.yacc;
 					//slam_insert_acc(xacc,yacc,current_heading,get_current_millis());
-					std::cout << "xacc: " << xacc << " yacc: " << yacc << "\n";
+					//std::cout << "xacc: " << xacc << " yacc: " << yacc << "\n";
 					break;
 				case MAVLINK_MSG_ID_RC_CHANNELS_RAW:
 					/*Prüft, ob eine Umstellung auf externe Kontrolle erfolgt ist*/
@@ -264,6 +264,7 @@ void loop() {
 					mavlink_rc_channels_raw_t rc;
 					mavlink_msg_rc_channels_raw_decode(&msg,&rc);
 					//std::cout << "RC_CH5_Raw: " << rc.chan5_raw << "\n";
+					/*TODO Entfernen*/init_state = 1; rc.chan5_raw = MODE_SWITCH_RANGE_UP-1;
 					if (init_state && rc.chan5_raw < MODE_SWITCH_RANGE_UP && rc.chan5_raw > MODE_SWITCH_RANGE_DOWN) {
 						std::cout << "State changed from IDLE to INIT.\n";
 						schedule_add(0,CHANGE_STATE,(int)INIT);
@@ -289,7 +290,7 @@ void loop() {
 			schedule_add(5000,CHECK_STILL,0);
 			#if LOG > 0
 			schedule_add(LOG_SPEED,SAVE_LOG,0);
-			schedule_add(SLAM_SPEED,SAVE_SLAM,0);
+			//schedule_add(SLAM_SPEED,SAVE_SLAM,0);
 			#endif
 			for (int i = 0; i < SE_COUNT; i++) schedule_add(0, MEASURE, SE0_ADDRESS + i);
 			slam_init(current_heading,get_current_millis());
@@ -309,7 +310,7 @@ void loop() {
 			yaw = 0;
 			send_ext_ctrl();	
 			/*Prüfung auf Stillstand*/
-			if (abs(roll) <= STILL_FAK_ROLL*MAX_DISTANCE && abs(pitch) <= STILL_FAK_PITCH*MAX_DISTANCE) {
+			if (abs(roll) <= STILL_FAK_ROLL*MAX_DISTANCE/100 && abs(pitch) <= STILL_FAK_PITCH*MAX_DISTANCE/100) {
 				still = 1;
 			} else {
 				still = 0;
@@ -317,17 +318,17 @@ void loop() {
 		break;
 		case MEASURE_ENVIRONMENT:
 			/*Vermisst die Umgebung durch eine Drehung um 360/SE_COUNT Grad*/
-			/*TODO: Entfernen*/state = HOLD_STILL; break;
+			/*TODO ENTFERNEN*/ //state = HOLD_STILL; break;
 			if (abs(xacc) > HOLD_STILL_MAX_XACC || abs(yacc) > HOLD_STILL_MAX_YACC) {/*Wurde der Copter zu stark bewegt: Abbruch*/state = HOLD_STILL; std::cout << "State changed to HEAD_TO_MIDDLE\n"; break;}
 			if (first_heading == -1) {
 				/*Speichert die anfaengliche Ausrichtung und veranlasst den Copter sich zu drehen*/
 				std::cout << "State changed to MEASURE_ENVIRONMENT\n";
-				slam_refresh_pos(get_current_millis());
+				//TODO: Entfernen slam_refresh_pos(get_current_millis());
 				first_heading = current_heading;
 				roll = 0; pitch = 0; rotation = 0; yaw = CONST_YAW;
 				send_ext_ctrl();
 			}
-			if (new_value) slam_insert_measurement(srf[new_value-SE0_ADDRESS].get_mean(),current_heading);
+			if (new_value) slam_insert_measurement(srf[new_value-SE0_ADDRESS].get_mean(),current_heading + (360/SE_COUNT)*(new_value-SE0_ADDRESS));
 			/*Berechnung der aktuellen Drehung*/
 			if (new_heading) {
 				if (abs(current_heading - old_heading) > 180/SE_COUNT)	rotation += current_heading - old_heading - sign(current_heading - old_heading)*360;
@@ -348,11 +349,9 @@ void loop() {
 			/*Berechnet an Hand der vermessenen Umgebung vorgeschlagene Werte um den Mittelpunkt zu erreichen*/
 			if(1) {
 				std::cout << "State changed to HEAD_TO_MIDDLE\n";
-				slam_refresh_pos(get_current_millis());
-				/*printf("First_heading:%d\n",first_heading);
-				for (int i = 0; i < 90; i++) {
-				//printf("%d\t%d\t%d\t%d\n", (first_heading + i + 360/SE_COUNT)%360,(first_heading + i + 90 + 360/SE_COUNT)%360, (first_heading + i + 180 + 360/SE_COUNT)%360,(first_heading + i + 270 + 360/SE_COUNT)%360);
-				printf("%d\t%d\t%d\t%d\t%d\n", i, env[(first_heading + i + 360/SE_COUNT)%360],env[(first_heading + i + 90 + 360/SE_COUNT)%360], env[(first_heading + i + 180 + 360/SE_COUNT)%360],env[(first_heading + i + 270 + 360/SE_COUNT)%360]);
+				printf("First_heading:%d\n",first_heading);
+				/*for (int i = 0; i < 90; i++) {
+					printf("%d\t%d\t%d\t%d\t%d\n", i, env[(first_heading + i + 360/SE_COUNT)%360],env[(first_heading + i + 90 + 360/SE_COUNT)%360], env[(first_heading + i + 180 + 360/SE_COUNT)%360],env[(first_heading + i + 270 + 360/SE_COUNT)%360]);
 				}*/
 				short used_headings = 360/SE_COUNT;
 				for (int i = 0; i < 360/SE_COUNT; i++) {
@@ -365,14 +364,17 @@ void loop() {
 				if (used_headings == 0)	{roll = 0; pitch = 0;}
 				else 			{roll = roll/used_headings; pitch = pitch/used_headings; rotation = 0;}
 				first_heading = -1; yaw = 0; pid_roll.reset(); pid_pitch.reset();
-				state = DELAY;
+				state = HTM_DELAY;
 				schedule_add(HTM_DELAY_TIME, CHANGE_STATE, HOLD_STILL);
 				send_ext_ctrl();
+				slam_refresh_pos(get_current_millis());
+				slam_draw_image("slam.ppm");
 				std::cout << "State changed to HOLD_STILL\n";
 				//printf("%d\t%d\n",roll,pitch);
 			}
 		break;
 		case DELAY: break;
+		case HTM_DELAY: break;
 		default: break;
 	}
 	#if LOG > 0

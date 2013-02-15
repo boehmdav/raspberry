@@ -15,11 +15,11 @@
 #define SE_DATA_BUFFER_SIZE	10		// Groesze des Messwertebuffers (Legt einen Freiheitsgrad des erweiterten Mittelwertfilters fest)
 
 #define SE0_ADDRESS		112		// I2C-Adressen der Ultraschallsensoren
-#define SE1_ADDRESS		113		// SE0_ADDRESS muss die kleinste Adresse haben
-#define SE2_ADDRESS		114		// Adressen muessen aufeinanderfolgen
-#define SE3_ADDRESS		115
+#define SE1_ADDRESS		SE0_ADDRESS+1	// SE0_ADDRESS muss die kleinste Adresse haben
+#define SE2_ADDRESS		SE0_ADDRESS+2	// Adressen muessen aufeinanderfolgen
+#define SE3_ADDRESS		SE0_ADDRESS+3
 
-#define EXT_CTRL		0		// Schaltet die externe Kontrolle an/aus
+#define EXT_CTRL		1		// Schaltet die externe Kontrolle an/aus
 #define STD_FACTOR		2		// Faktor fuer die maximal erlaubte Abweichung von der Standardabweichung
 #define MIN_STD			10		// Kleinste erlaubte Abweichung von der Standardabweichung
 
@@ -37,11 +37,11 @@
 #define HOLD_STILL_PITCH_TN	HOLD_STILL_ROLL_TN	// Nachstellzeit
 #define HOLD_STILL_PITCH_TV	HOLD_STILL_ROLL_TV	// Vorhaltzeit
 
-#define HOLD_STILL_MAX_XACC	100		// Maximal erlaubte Beschleunigung auf der x-Achse in mg
-#define HOLD_STILL_MAX_YACC	100		// Maximal erlaubte Beschleunigung auf der y-Achse in mg
+#define HOLD_STILL_MAX_XACC	1000		// Maximal erlaubte Beschleunigung auf der x-Achse
+#define HOLD_STILL_MAX_YACC	1000		// Maximal erlaubte Beschleunigung auf der y-Achse
 
-#define STILL_FAK_ROLL		0.05		// Faktor zur Bestimmung eines Stillstandes auf der Roll-Achse
-#define STILL_FAK_PITCH		0.05		// Faktor zur Bestimmung eines Stillstandes auf der Pitch-Achse
+#define STILL_FAK_ROLL		5		// Faktor zur Bestimmung eines Stillstandes auf der Roll-Achse
+#define STILL_FAK_PITCH		5		// Faktor zur Bestimmung eines Stillstandes auf der Pitch-Achse
 #define CHECK_STILL_SPEED	100		// Verzoegerung zwischen zwei Pruefungen auf Stillstand in ms
 #define CHECK_STILL_COUNT	5		// Zahl der aufeinanderfolgenden Zahl von Pruefungen bis ein Stillstand angenommen wird
 
@@ -51,6 +51,9 @@
 #define LOG_SPEED		1000		// Zeitspanne zwischen zwei Sicherungen der Log-Daten in ms
 #define WARNINGS		1		// Schaltet Warnungen an/aus
 
-#define SLAM_SPEED		5000
+#define SLAM_CORR		1		// Schaltet die Positionskorrektur mit Hilfe einer Kreuzkorrelation ein/aus
+#define SLAM_RESOLUTION		3		// Gibt die Auflösung des SLAM-Algorithmus in CM/Zelle an
+
+#include "config_check.h"
 
 #endif

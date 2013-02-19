@@ -27,6 +27,7 @@ void schedule_add(unsigned int plus, enum sched_tasks current_task, short param)
 
 void send_ext_ctrl() {
 	#if EXT_CTRL > 0
+	if (desktop_build) return;
 	/*Sendet die aktuell vorgeschlagenen Werte fuer roll und pitch an den Copter*/
 	mavlink_message_t ex_msg;
 	uint8_t ex_buf[MAVLINK_MAX_PACKET_LEN];
@@ -51,7 +52,122 @@ void signal_callback_handler(int signum) {
    exit(signum);
 }
 
-int main () {
+int main (int argc, char* argv[]) {
+	max_pitch = MAX_PITCH; 
+	max_roll = MAX_ROLL;
+	breakpoint = 0;
+	desktop_build = 0;
+	float hs_p = HOLD_STILL_ROLL_KP;
+	float hs_i = HOLD_STILL_ROLL_TN;
+	float hs_d = HOLD_STILL_ROLL_TV;
+	for(int i=1;i<argc;i++) {
+		if (!strcmp("--pitch",argv[i]) || !strcmp("--p",argv[i])) {
+			if ((i+1) < argc) {
+				if (!strcmp("0",argv[i+1])) {
+					max_pitch = 0;
+					i++;
+				} else {
+					max_pitch = atoi(argv[i+1]);
+					if (max_pitch == 0) {
+						std::cout << argv[i+1] << " is not a valid value for --pitch. Using default value (" << MAX_PITCH << ").\n";
+					} else {
+						i++;
+					}
+				}
+			} else {
+				std::cout << "Warning: --pitch needs an additional value. Using default value (" << MAX_PITCH << ").\n"; 
+			}
+		} else if (!strcmp("--roll",argv[i]) || !strcmp("--r",argv[i])) {
+			if ((i+1) < argc) {
+				if (!strcmp("0",argv[i+1])) {
+					max_roll = 0;
+					i++;
+				} else {
+					max_roll = atoi(argv[i+1]);
+					if (max_roll == 0) {
+						std::cout << argv[i+1] << " is not a valid value for --roll. Using default value (" << MAX_ROLL << ").\n";
+					} else {
+						i++;
+					}
+				}
+			} else {
+				std::cout << "Warning: --roll needs an additional value. Using default value (" << MAX_ROLL << ").\n"; 
+			}
+		} else if(!strcmp("--hsp",argv[i])) {
+			if ((i+1) < argc) {
+				if (!strcmp("0",argv[i+1])) {
+					hs_p = 0;
+					i++;
+				} else {
+					hs_p = atof(argv[i+1]);
+					if (hs_p == 0) {
+						std::cout << argv[i+1] << " is not a valid value for --hsp. Using default value (" << hs_p << ").\n";
+					} else {
+						i++;
+					}
+				}
+			} else {
+				std::cout << "Warning: --hsp needs an additional value. Using default value (" << hs_p << ").\n"; 
+			}
+		} else if(!strcmp("--hsi",argv[i])) {
+			if ((i+1) < argc) {
+				if (!strcmp("0",argv[i+1])) {
+					hs_i = 0;
+					i++;
+				} else {
+					hs_i = atof(argv[i+1]);
+					if (hs_i == 0) {
+						std::cout << argv[i+1] << " is not a valid value for --hsi. Using default value (" << hs_i << ").\n";
+					} else {
+						i++;
+					}
+				}
+			} else {
+				std::cout << "Warning: --hsi needs an additional value. Using default value (" << hs_i << ").\n"; 
+			}
+		} else if(!strcmp("--hsd",argv[i])) {
+			if ((i+1) < argc) {
+				if (!strcmp("0",argv[i+1])) {
+					hs_d = 0;
+					i++;
+				} else {
+					hs_d = atof(argv[i+1]);
+					if (hs_d == 0) {
+						std::cout << argv[i+1] << " is not a valid value for --hsd. Using default value (" << hs_d << ").\n";
+					} else {
+						i++;
+					}
+				}
+			} else {
+				std::cout << "Warning: --hsd needs an additional value. Using default value (" << hs_d << ").\n"; 
+			}
+		} else if(!strcmp("--b",argv[i])) {
+			if ((i+1) < argc) {
+				if (!strcmp("0",argv[i+1])) {
+					breakpoint = 0;
+					i++;
+				} else {
+					breakpoint = atof(argv[i+1]);
+					if (breakpoint == 0) {
+						std::cout << argv[i+1] << " is not a valid value for --b. Using default value (" << (int)breakpoint << ").\n";
+					} else {
+						i++;
+					}
+				}
+			} else {
+				std::cout << "Warning: --b needs an additional value. Using default value (" << (int)breakpoint << ").\n"; 
+			}
+		} else if(!strcmp("--db",argv[i])) {
+				desktop_build = 1;
+				std::cout << "Warning: Desktop-Build!\n";
+		} else {
+			if (strcmp("--?",argv[i]) && strcmp("--help",argv[i]) && strcmp("--h",argv[i])) std::cout << "Unknown Input " << argv[i] << "\n";
+			std::cout << "Valid inputs are: \n --pitch VAL \t Sets maximum pitch to (short)VAL \n --roll VAL \t Sets maximum roll to (short)VAL \n --hsp VAL \t Sets P-value hs-controller to (float)VAL \n --hsi VAL \t Sets I-value hs-controller to (float)VAL \n --hsp VAL \t Sets D-value hs-controller to (float)VAL \n --b VAL \t Sets a breakpoint (0 = None, 1 = HS, 2 = HTM)\n";
+			exit(1);
+		}
+	} 
+	pid_roll.set(hs_p,hs_i,hs_d);
+	pid_pitch.set(hs_p,hs_i,hs_d);
 	setup();
 	while(1) loop();
 	return 0;
@@ -69,7 +185,7 @@ void setup() {
 	/*output  modes*/ attr.c_oflag = OPOST | ONLCR;	
 	/*control modes*/ attr.c_cflag = TTY_DEVICE_SPEED | CS8 | CRTSCTS | CLOCAL | CREAD;
 	/*local   modes*/ attr.c_lflag = 0;
-	if (tcsetattr(tty_fd, TCSAFLUSH, &attr) != 0){perror("SETUP: tcsetattr() fehlgeschlagen"); exit(1);}
+	if (tcsetattr(tty_fd, TCSAFLUSH, &attr) != 0){	perror("SETUP: tcsetattr() fehlgeschlagen"); exit(1);}
 	first_heartbeat = 0;	
 
 	srf_fd = open(SRF_DEVICE, O_RDWR);
@@ -136,7 +252,7 @@ void loop() {
 			case READ_MEASURE:
 				/*Liest die Messdaten des als Parameter uebergebenen Sensors aus und veranlasst erneute Messung*/
 				srf[scheduler[i].param - SE0_ADDRESS].read_it(get_current_millis());
-				schedule_add(0, MEASURE, scheduler[i].param);
+				schedule_add(srf[scheduler[i].param - SE0_ADDRESS].get_delay(), MEASURE, scheduler[i].param);
 				if(state == HOLD_STILL || state == MEASURE_ENVIRONMENT) {
 					nvalue[scheduler[i].param - SE0_ADDRESS] = 1;
 				}
@@ -145,12 +261,12 @@ void loop() {
 				}*/
 				new_value = scheduler[i].param;
 				
-				/*if (state == HOLD_STILL || state ==  HEAD_TO_MIDDLE || state == HTM_DELAY) {
+				if (state == HOLD_STILL || state ==  HEAD_TO_MIDDLE || state == HTM_DELAY) {
 					if (nvalue2[0] == 1 && nvalue2[1] == 1 && nvalue2[2] == 1 && nvalue2[3] == 1) {
 						slam_insert_v((srf[0].get_cm_per_s() + srf[1].get_cm_per_s())/2,(srf[2].get_cm_per_s() + srf[3].get_cm_per_s())/2,current_heading,get_current_millis());
 						nvalue2[0] = 0; nvalue2[1] = 0; nvalue2[2] = 0; nvalue2[3] = 0;
 					}
-				}*/
+				}
 				/*Speichert den gelesenen Messwert in der entsprechenden Log-Datei*/
 				#if LOG > 0
 				FILE *fd;
@@ -229,7 +345,7 @@ void loop() {
 		if (mavlink_parse_char(MAVLINK_COMM_0,(uint8_t) *c, &msg, &status)) {
 			#if DEBUG_LEVEL > 1
 			printf("%u Mavlinkpaket empfangen: %d\n", get_current_millis(), msg.msgid);			
-			#endif			
+			#endif
 			//printf("%u Mavlinkpaket empfangen: %d\n", get_current_millis(), msg.msgid);
 			
 			switch (msg.msgid) {
@@ -264,7 +380,7 @@ void loop() {
 					mavlink_rc_channels_raw_t rc;
 					mavlink_msg_rc_channels_raw_decode(&msg,&rc);
 					//std::cout << "RC_CH5_Raw: " << rc.chan5_raw << "\n";
-					/*TODO Entfernen*/init_state = 1; rc.chan5_raw = MODE_SWITCH_RANGE_UP-1;
+					if (desktop_build) init_state = 1; rc.chan5_raw = MODE_SWITCH_RANGE_UP-1;
 					if (init_state && rc.chan5_raw < MODE_SWITCH_RANGE_UP && rc.chan5_raw > MODE_SWITCH_RANGE_DOWN) {
 						std::cout << "State changed from IDLE to INIT.\n";
 						schedule_add(0,CHANGE_STATE,(int)INIT);
@@ -300,17 +416,25 @@ void loop() {
 			/*Veranlasst den Copter auf Grundlage der Änderungen der Messwerte still zu stehen*/
 			if (new_heading) break;
 			if (nvalue[0] == 1 && nvalue[1] == 1) {
-				roll  = between<short>(pid_roll.get((srf[0].get_mean_diff()+srf[1].get_mean_diff())/2, (srf[0].get_msec_diff() + srf[1].get_msec_diff())/2), -MAX_ROLL,  MAX_ROLL);
+				unsigned char se;
+				if (abs(srf[0].get_mean_diff()) < abs(srf[1].get_msec_diff()))	{se = 0;}
+				else 								{se = 1;}
+				//roll  = between<short>(pid_roll.get((srf[0].get_mean_diff()+srf[1].get_mean_diff())/2, (srf[0].get_msec_diff() + srf[1].get_msec_diff())/2), -max_roll,  max_roll);
+				roll  = between<short>(pid_roll.get(srf[se].get_mean_diff(), srf[se].get_msec_diff()), -max_roll,  max_roll);
 				nvalue[0] = 0; nvalue[1] = 0;
 			}
 			if (nvalue[2] == 1 && nvalue[3] == 1) {
-				pitch  = between<short>(pid_pitch.get((srf[2].get_mean_diff()+srf[3].get_mean_diff())/2, (srf[2].get_msec_diff() + srf[3].get_msec_diff())/2), -MAX_PITCH,  MAX_PITCH);
+				unsigned char se;
+				if (abs(srf[2].get_mean_diff()) < abs(srf[3].get_msec_diff()))	{se = 2;}
+				else 								{se = 3;}
+				//pitch  = between<short>(pid_pitch.get((srf[2].get_mean_diff()+srf[3].get_mean_diff())/2, (srf[2].get_msec_diff() + srf[3].get_msec_diff())/2), -max_pitch,  max_pitch);
+				pitch  = between<short>(pid_pitch.get(srf[se].get_mean_diff(), srf[se].get_msec_diff()), -max_pitch,  max_pitch);
 				nvalue[2] = 0; nvalue[3] = 0;
 			}
 			yaw = 0;
-			send_ext_ctrl();	
+			send_ext_ctrl();
 			/*Prüfung auf Stillstand*/
-			if (abs(roll) <= STILL_FAK_ROLL*MAX_DISTANCE/100 && abs(pitch) <= STILL_FAK_PITCH*MAX_DISTANCE/100) {
+			if (abs(roll) <= STILL_FAK_ROLL*max_roll/100 && abs(pitch) <= STILL_FAK_PITCH*max_pitch/100) {
 				still = 1;
 			} else {
 				still = 0;
@@ -318,24 +442,25 @@ void loop() {
 		break;
 		case MEASURE_ENVIRONMENT:
 			/*Vermisst die Umgebung durch eine Drehung um 360/SE_COUNT Grad*/
-			/*TODO ENTFERNEN*/ //state = HOLD_STILL; break;
+			if (breakpoint == 1) {state = HOLD_STILL; break;}
 			if (abs(xacc) > HOLD_STILL_MAX_XACC || abs(yacc) > HOLD_STILL_MAX_YACC) {/*Wurde der Copter zu stark bewegt: Abbruch*/state = HOLD_STILL; std::cout << "State changed to HEAD_TO_MIDDLE\n"; break;}
 			if (first_heading == -1) {
 				/*Speichert die anfaengliche Ausrichtung und veranlasst den Copter sich zu drehen*/
 				std::cout << "State changed to MEASURE_ENVIRONMENT\n";
-				//TODO: Entfernen slam_refresh_pos(get_current_millis());
 				first_heading = current_heading;
 				roll = 0; pitch = 0; rotation = 0; yaw = CONST_YAW;
 				send_ext_ctrl();
 			}
-			if (new_value) slam_insert_measurement(srf[new_value-SE0_ADDRESS].get_mean(),current_heading + (360/SE_COUNT)*(new_value-SE0_ADDRESS));
+			if (new_value) slam_insert_measurement(srf[new_value-SE0_ADDRESS].get_mean(),(current_heading + (360/SE_COUNT)*(new_value-SE0_ADDRESS))%360);
 			/*Berechnung der aktuellen Drehung*/
 			if (new_heading) {
 				if (abs(current_heading - old_heading) > 180/SE_COUNT)	rotation += current_heading - old_heading - sign(current_heading - old_heading)*360;
 				else 							rotation += current_heading - old_heading;
 				for(int i = 0; i < SE_COUNT; i++) {
-					if(nvalue[i] == 1) env[(current_heading + i*(360/SE_COUNT))%360] = srf[i].get_mean();
-					nvalue[i] = 0;
+					if(nvalue[i] == 1) {
+						env[(current_heading + i*(360/SE_COUNT))%360] = srf[i].get_mean();
+						nvalue[i] = 0;
+					}
 				}
 				if (abs(rotation) >= 360/SE_COUNT) {
 					/*Copter hat sich ausreichend gedreht, Abbruch der Vermessung*/
@@ -349,7 +474,7 @@ void loop() {
 			/*Berechnet an Hand der vermessenen Umgebung vorgeschlagene Werte um den Mittelpunkt zu erreichen*/
 			if(1) {
 				std::cout << "State changed to HEAD_TO_MIDDLE\n";
-				printf("First_heading:%d\n",first_heading);
+				//printf("First_heading:%d\n",first_heading);
 				/*for (int i = 0; i < 90; i++) {
 					printf("%d\t%d\t%d\t%d\t%d\n", i, env[(first_heading + i + 360/SE_COUNT)%360],env[(first_heading + i + 90 + 360/SE_COUNT)%360], env[(first_heading + i + 180 + 360/SE_COUNT)%360],env[(first_heading + i + 270 + 360/SE_COUNT)%360]);
 				}*/
@@ -358,24 +483,24 @@ void loop() {
 					if (env[(first_heading + i + 360/SE_COUNT)%360] == 0 || env[(first_heading + i + 180 + 360/SE_COUNT)%360] == 0) {used_headings--; continue;}
 					short tmp_roll  = env[(first_heading + i + 360/SE_COUNT)%360] - env[(first_heading + i + 180 + 360/SE_COUNT)%360];
 					short tmp_pitch = env[(first_heading + i + 90 + 360/SE_COUNT)%360] - env[(first_heading + i + 270 + 360/SE_COUNT)%360];
-					roll +=  (short)(sign(tmp_roll) *HTMR(abs(tmp_roll)) *sin(i*PI/180));
-					pitch += (short)(sign(tmp_pitch)*HTMP(abs(tmp_pitch))*cos(i*PI/180));
+					roll +=  (short)(sign(tmp_roll) *HTMR(abs(tmp_roll)) *sin(RAD(i)));
+					pitch += (short)(sign(tmp_pitch)*HTMP(abs(tmp_pitch))*cos(RAD(i)));
 				}
 				if (used_headings == 0)	{roll = 0; pitch = 0;}
 				else 			{roll = roll/used_headings; pitch = pitch/used_headings; rotation = 0;}
 				first_heading = -1; yaw = 0; pid_roll.reset(); pid_pitch.reset();
 				state = HTM_DELAY;
 				schedule_add(HTM_DELAY_TIME, CHANGE_STATE, HOLD_STILL);
-				send_ext_ctrl();
+				if (breakpoint != 2) send_ext_ctrl();
 				slam_refresh_pos(get_current_millis());
 				slam_draw_image("slam.ppm");
 				std::cout << "State changed to HOLD_STILL\n";
 				//printf("%d\t%d\n",roll,pitch);
 			}
 		break;
-		case DELAY: break;
-		case HTM_DELAY: break;
-		default: break;
+		case DELAY: 	break;
+		case HTM_DELAY:	break;
+		default:	break;
 	}
 	#if LOG > 0
 	fprintf(fd_data,"%u\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", get_current_millis(), roll, pitch, yaw, current_heading, state, xacc, yacc);

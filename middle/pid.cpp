@@ -23,6 +23,12 @@ void PID::reset() {
 	old_deviation = 0;
 }
 
+void PID::set(float vp, float vi, float vd) {
+	P = (float) vp;
+	I = (float) vi;
+	D = (float) vd;
+}
+
 void PID::set_target(short tval) {
 	target_value = tval;
 }

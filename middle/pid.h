@@ -7,6 +7,7 @@ public:
 	short get(short current_value, float sampling_time);	// Berechnet den Regelwert an Hand des Istwertes und der Abtastzeit
 	void reset();						// Setzt I- und D-Anteil zurück
 	void set_target(short tval);				// Setzt eine neue Sollgröße für den Regler
+	void set(float vp, float vi, float vd);
 
 private:
 	float P, I, D;

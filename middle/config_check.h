@@ -25,7 +25,17 @@
  #endif //DA_SRF_H
 
  #ifdef DA_SLAM_H
-  //#warning message("SLAM")
+  #ifndef CORR
+   #define CORR = 0
+  #endif
+  #ifndef SLAM_RESOLUTION
+   #warning "SLAM_RESOLUTION not defined, set to 1"
+   #define SLAM_RESOLUTION 1
+  #elif SLAM_RESOLUTION < 1
+   #warning "SLAM_RESOLUTION lower than 1, set to 1"
+   #undef SLAM_RESOLUTION
+   #define SLAM_RESOLUTION
+  #endif
  #endif //DA_SLAM_H
 
  #ifdef DA_MIDDLE_H
@@ -187,14 +197,6 @@
   #ifndef WARNINGS
    #warning "WARNINGS not defined, set to 0"
    #define WARNINGS 0
-  #endif
-  #ifndef SLAM_RESOLUTION
-   #warning "SLAM_RESOLUTION not defined, set to 1"
-   #define SLAM_RESOLUTION 1
-  #elif SLAM_RESOLUTION < 1
-   #warning "SLAM_RESOLUTION lower than 1, set to 1"
-   #undef SLAM_RESOLUTION
-   #define SLAM_RESOLUTION
   #endif
  #endif //DA_MIDDLE_H
 #endif //DA_CONFIG_CHECK_H

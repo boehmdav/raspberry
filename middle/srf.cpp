@@ -6,6 +6,7 @@ SRF::SRF(unsigned short addr, int srf_fd) :
 _addr(addr),mean(0),tv_msec(0),old_mean(0),old_tv_msec(0),_srf_fd(srf_fd),error(SRF_OK),data_pos(0)
 {
 	for(int i = 0; i < SE_DATA_BUFFER_SIZE; i++) data[i] = MAX_DISTANCE;
+	delay = 0;
 }
 
 template <typename T>
@@ -38,8 +39,9 @@ void SRF::measure () {
 short SRF::read_measure() {
 	if (ioctl(_srf_fd, I2C_SLAVE, _addr) < 0) {perror("READ_MEASURE: Es konnte nicht auf den I2C-Bus zugegriffen werden."); error = SRF_READ_IOCTL;}
 	unsigned char buf[2]; buf[0] = 0x02;
-	if (write(_srf_fd, buf, 1) != 1) {if(WARNINGS){perror("READ_MEASURE: Es konnte nicht auf den I2C-Bus geschrieben werden.");} error = SRF_READ_WRITE; return MAX_DISTANCE;}
-	if (read(_srf_fd, buf, 2) < 1)  {if(WARNINGS){perror("READ_MEASURE: Es konnte nicht vom I2C-Bus gelesen werden.");} error = SRF_READ_READ; return MAX_DISTANCE;}
+	if (write(_srf_fd, buf, 1) != 1) {if(WARNINGS){perror("READ_MEASURE: Es konnte nicht auf den I2C-Bus geschrieben werden.");} error = SRF_READ_WRITE; delay = 5; return MAX_DISTANCE;}
+	if (read(_srf_fd, buf, 2) < 1)  {if(WARNINGS){perror("READ_MEASURE: Es konnte nicht vom I2C-Bus gelesen werden.");} error = SRF_READ_READ; delay = 5; return MAX_DISTANCE;}
+	delay = 0;
 	return ((buf[0]<<8) + buf[1]);
 }
 

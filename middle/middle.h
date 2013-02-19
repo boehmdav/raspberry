@@ -29,6 +29,11 @@ void schedule_add(unsigned int plus, enum sched_tasks current_task, short param)
 void setup();
 void loop();
 
+short max_pitch;
+short max_roll;
+unsigned char breakpoint;
+unsigned char desktop_build;
+
 /*Variablen fuer die serielle Kommunikation*/
 int tty_fd;
 struct termios attr;

@@ -8,6 +8,8 @@
 #define ENABLE			ENABLED
 #define DISABLE			DISABLED
 
+
+
 struct position {
 	int x;
 	int y;
@@ -27,8 +29,12 @@ struct position {
 #define COLOR_ITEM_PATH		"0   255 0  "
 #define COLOR_ITEM_ERROR	"255 0   0  "
 
+#define MEAN			0
+#define MEDIAN			1
+
 #define PI			3.14159265358979323846f
-#define RAD(X)			X*0.017453293 	//PI/180
+#define RAD(X)			X*0.017453293f 		//X*PI/180
+#define DEG(X)			X*57.2957795131f	//X*180/PI
 
 #define ISSQUARE(X)		X && !(X & (X-1))
 
@@ -39,20 +45,12 @@ struct position {
 #define MAX_TASKS		16		// Maximale Zahl an Aufgaben, die der Scheduler speichern kann	
 enum sched_tasks {NOTHING, MEASURE, READ_MEASURE, SEND_EXT_CTRL, SAVE_LOG, SAVE_SLAM, CHECK_STILL, SHOW_ME, CHANGE_STATE};
 struct sched_task {
-	unsigned int 		tv_msec;
+	unsigned long 		tv_msec;
 	enum sched_tasks 	task;
 	short 			param;
 };
 
-enum states {HOLD_STILL, MEASURE_ENVIRONMENT, HEAD_TO_MIDDLE, DELAY, IDLE, INIT, HTM_DELAY};
-
-/*
- * Position oben: 	0 -1230
- * Position mittel:	1491-1620
- * Position unten:	1750 - Inf
- */
-#define MODE_SWITCH_RANGE_DOWN	1491
-#define MODE_SWITCH_RANGE_UP	1620
+enum states {HOLD_STILL, MEASURE_ENVIRONMENT, GET_ANCHOR, DELAY, IDLE, INIT, HTM_DELAY, GET_ALIGNMENT};
 
 enum srf_error {SRF_OK = 0,SRF_MEASURE_IOCTL,SRF_MEASURE_WRITE,SRF_READ_IOCTL,SRF_READ_WRITE,SRF_READ_READ,SRF_INIT_OPEN};
 

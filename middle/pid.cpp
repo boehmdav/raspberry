@@ -12,8 +12,10 @@ short PID::get(short current_value /*Istgroesze*/, float sampling_time /*Abtastz
 	sampling_time = sampling_time/1000;
 	/*Regelabweichung*/ short deviation = current_value - target_value;
 	deviation_sum += deviation;
-	short return_value = P*(float)deviation + I*(float)sampling_time*(float)deviation_sum + D*((float)deviation - (float)old_deviation)/(float)sampling_time;
-	//std::cout << "P:" << P << " I:" << I << " D:" << D << " deviation:" << deviation << " P*d:" <<  P*(float)deviation << "\n";
+	float ival = I*(float)sampling_time*(float)deviation_sum;
+	if (ival > IMAX) ival = IMAX;
+	else if (ival < -IMAX) ival = -IMAX;
+	short return_value = P*(float)deviation + ival - D*((float)deviation - (float)old_deviation)/(float)sampling_time;
 	old_deviation = deviation;
 	return return_value;
 }

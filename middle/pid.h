@@ -1,5 +1,6 @@
 #ifndef DA_PID_H
 #define DA_PID_H
+#include "config.h"
 
 class PID {
 public:

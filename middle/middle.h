@@ -15,6 +15,10 @@
 #include <time.h>
 #include <vector>
 #include <signal.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <fstream>
 #include "../../mavlink_huch/huch/mavlink.h"
 
 #include "defines.h"
@@ -23,9 +27,12 @@
 #include "pid.h"
 #include "srf.h" 
 
+int s = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+struct sockaddr_in gcAddr;
+
 void measure(short address);
-unsigned int get_current_millis();
-void schedule_add(unsigned int plus, enum sched_tasks current_task, short param);
+unsigned long get_current_millis();
+void schedule_add(unsigned long plus, enum sched_tasks current_task, short param);
 void setup();
 void loop();
 
@@ -34,12 +41,24 @@ short max_roll;
 unsigned char breakpoint;
 unsigned char desktop_build;
 
+short rotation_angle;
+short rotation_angle_sign;
+short yaw_sign;
+unsigned short desired_heading;
+int tv_old_heading;
+unsigned char hs_state;
+unsigned char align_se;
+
+
 /*Variablen fuer die serielle Kommunikation*/
 int tty_fd;
 struct termios attr;
 fd_set tty_fdset;
 unsigned char first_heartbeat;
 short current_heading, old_heading;
+
+float current_roll_rad;
+float current_pitch_rad;
 
 /*Variablen fuer die Nutzung der Ultraschallsensoren*/
 int srf_fd;
@@ -71,7 +90,9 @@ char log_dir[32];
 
 PID pid_roll(HOLD_STILL_ROLL_KP,HOLD_STILL_ROLL_TN,HOLD_STILL_ROLL_TV,0);
 PID pid_pitch(HOLD_STILL_PITCH_KP,HOLD_STILL_PITCH_TN,HOLD_STILL_PITCH_TV,0);
-
+PID pid_yaw(HTM_YAW_KP,HTM_YAW_TN,HTM_YAW_TV,0);
+PID pid_roll_anc(ANC_ROLL_KP,ANC_ROLL_TN,ANC_ROLL_TV,ANCHOR_DISTANCE);
+PID pid_pitch_anc(ANC_PITCH_KP,ANC_PITCH_TN,ANC_PITCH_TV,ANCHOR_DISTANCE);
 unsigned char init_state;
 
 template <typename T>

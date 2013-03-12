@@ -1,0 +1,7 @@
+#!/bin/sh
+scp db@192.168.0.180:Diplomarbeit/raspberry/middle/*.cpp .
+scp db@192.168.0.180:Diplomarbeit/raspberry/middle/*.h .
+make clean
+make
+echo "Start!"
+./middle

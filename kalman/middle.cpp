@@ -15,12 +15,9 @@ void schedule_add(unsigned long plus, enum sched_tasks current_task, short param
 	for (i = 0; i < MAX_TASKS; i++) {
 		if (scheduler[i].task == NOTHING) {
 			scheduler[i] = new_task;
-			#if DEBUG_LEVEL > 2
-			printf("%u SCHEDULE: Neuer Task hinzugefuegt: %u %d %d\n", get_current_millis(), new_task.tv_msec, new_task.task, new_task.param);
-			#endif
 			break;
 		} else if (i == MAX_TASKS-1) {
-			if(WARNINGS){perror("SCHEDULE_ADD: Buffer voll, Task konnte nicht eingefuegt werden.");}
+			if(WARNINGS){std::perror("SCHEDULE_ADD: Buffer voll, Task konnte nicht eingefuegt werden.");}
 		}
 	}
 }
@@ -33,7 +30,7 @@ void send_ext_ctrl() {
 	uint8_t ex_buf[MAVLINK_MAX_PACKET_LEN];
 	mavlink_msg_huch_ext_ctrl_pack(0, MAV_COMP_ID_IMU, &ex_msg, TARGET_SYSTEM, TARGET_COMPONENT, 0, roll, pitch, yaw, 0);
 	uint16_t ex_len = mavlink_msg_to_send_buffer(ex_buf, &ex_msg);
-	if (write(tty_fd, ex_buf, ex_len) != ex_len) {if(WARNINGS){perror("LOOP: Es konnten keine Daten fuer die externe Kontrolle gesendet werden.");}}
+	if (write(tty_fd, ex_buf, ex_len) != ex_len) {if(WARNINGS){std::perror("LOOP: Es konnten keine Daten fuer die externe Kontrolle gesendet werden.");}}
 	#endif	
 }
 
@@ -42,17 +39,17 @@ void request_data_stream(short stream_id, short mav_speed, unsigned char mav_mod
 	uint8_t sbuf[MAVLINK_MAX_PACKET_LEN];
 	mavlink_msg_request_data_stream_pack(0, MAV_COMP_ID_IMU, &smsg, 1, 0, stream_id, mav_speed, mav_mode);
 	uint16_t len = mavlink_msg_to_send_buffer(sbuf, &smsg);
-	if (write(tty_fd, sbuf, len) != len) {perror("LOOP: Es konnte kein Datenstream abbonniert werden."); exit(1);}
+	if (write(tty_fd, sbuf, len) != len) {std::perror("LOOP: Es konnte kein Datenstream abbonniert werden."); exit(1);}
 }
 
 /*Stoppt die aktiven Datenstreams und beendet das Programm, wenn SIGINT gesendet wird*/
 void signal_callback_handler(int signum) {
 	request_data_stream(MAV_DATA_STREAM_ALL,0,0);
-	fclose(fd_112);
-	fclose(fd_113);
-	fclose(fd_114);
-	fclose(fd_115);
-	fclose(fd_data);
+	std::fclose(fd_112);
+	std::fclose(fd_113);
+	std::fclose(fd_114);
+	std::fclose(fd_115);
+	std::fclose(fd_data);
 	exit(signum);
 }
 
@@ -61,6 +58,7 @@ int main (int argc, char* argv[]) {
 	max_roll = MAX_ROLL;
 	breakpoint = 0;
 	desktop_build = 0;
+	var = VARIANCE;
 	float hs_p = HOLD_STILL_ROLL_KP;
 	float hs_i = HOLD_STILL_ROLL_TN;
 	float hs_d = HOLD_STILL_ROLL_TV;
@@ -193,7 +191,7 @@ int main (int argc, char* argv[]) {
 					htm_d = 0;
 					i++;
 				} else {
-					hs_p = atof(argv[i+1]);
+					htm_p = atof(argv[i+1]);
 					if (htm_d == 0) {
 						std::cout << argv[i+1] << " is not a valid value for --ancd. Using default value (" << ANC_ROLL_TV << ").\n";
 						htm_d = ANC_ROLL_TV;
@@ -203,6 +201,23 @@ int main (int argc, char* argv[]) {
 				}
 			} else {
 				std::cout << "Warning: --ancd needs an additional value. Using default value (" << ANC_ROLL_TV << ").\n"; 
+			}
+		} else if(!strcmp("--var",argv[i])) {
+			if ((i+1) < argc) {
+				if (!strcmp("0",argv[i+1])) {
+					var = 0;
+					i++;
+				} else {
+					var = atof(argv[i+1]);
+					if (var == 0) {
+						std::cout << argv[i+1] << " is not a valid value for --var. Using default value (" << VARIANCE << ").\n";
+						var = VARIANCE;
+					} else {
+						i++;
+					}
+				}
+			} else {
+				std::cout << "Warning: --var needs an additional value. Using default value (" << VARIANCE << ").\n"; 
 			}
 		} else if(!strcmp("--b",argv[i])) {
 			if ((i+1) < argc) {
@@ -249,7 +264,7 @@ int main (int argc, char* argv[]) {
 	strcpy(log_dir,"log/");
 	strcat(log_dir,tmp_dir);
 	strcpy(tmp_dir,log_dir);
-	if (mkdir(log_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) < 0) {perror("Verzeichnis fuer Log-Dateien konnte nicht angelegt werden."); exit(1);}
+	if (mkdir(log_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) < 0) {std::perror("Verzeichnis fuer Log-Dateien konnte nicht angelegt werden."); exit(1);}
 	f.open(strcat(tmp_dir,"/config"), std::ios::out);
 	f << "DATA_STREAM_SPEED: " << DATA_STREAM_SPEED << "\nSE_COUNT: " << SE_COUNT << "\nSRF_SPEED: " << SRF_SPEED << "\nENABLED_SENSORS: " << ENABLED_SENSORS << "\nMAX_DISTANCE: " << MAX_DISTANCE << "\nSE_MIN_DISTANCE: " << SE_MIN_DISTANCE << "\nSE_MIN: " << SE_MIN << "\nSE_MIN_DIFF: " << SE_MIN_DIFF << "\nMAX_ROLL_ANGLE: " << MAX_ROLL_ANGLE << "\nMAX_PITCH_ANGLE: " << MAX_PITCH_ANGLE << "\nSE_DATA_BUFFER_SIZE: " << SE_DATA_BUFFER_SIZE << "\nFILTER_MODE: " << FILTER_MODE << "\nSTD_FACTOR: " << STD_FACTOR << "\nMIN_STD: " << MIN_STD << "\nMAX_ROLL: " << max_roll << "\nMAX_PITCH: " << max_pitch << "\nCONST_YAW: " << CONST_YAW << "\nIMAX: " << IMAX << "\nHOLD_STILL_KP: " << hs_p << "\nHOLD_STILL_TN: " << hs_i << "\nHOLD_STILL_TV: " << hs_d << "\nSTILL_FAK: " << STILL_FAK_ROLL << "\nCHECK_STILL_SPEED: " << CHECK_STILL_SPEED << "\nCHECK_STILL_COUNT: " << CHECK_STILL_COUNT; 
 	f.close();
@@ -261,22 +276,25 @@ int main (int argc, char* argv[]) {
 
 /*Initialisierung*/
 void setup() {
-	/*Oeffnen der seriellen Schnitstelle TTY_DEVICE*/
+	/*Öffnen der seriellen Schnitstelle TTY_DEVICE*/
 	tty_fd = open(TTY_DEVICE, O_RDWR);
-	if (tty_fd == -1) {perror("SETUP: " TTY_DEVICE " kann nicht geoeffnet werden."); exit(1);}
+	if (tty_fd == -1) {std::perror("SETUP: " TTY_DEVICE " kann nicht geoeffnet werden."); exit(1);}
 	
 	/*Konfiguration der seriellen Schnittstelle*/	
-	if (tcgetattr(tty_fd, &attr) != 0) {perror("SETUP: tcgetattr() fehlgeschlagen."); exit(1);}
+	if (tcgetattr(tty_fd, &attr) != 0) {std::perror("SETUP: tcgetattr() fehlgeschlagen."); exit(1);}
 	/*input   modes*/ attr.c_iflag = 0;
 	/*output  modes*/ attr.c_oflag = OPOST | ONLCR;	
 	/*control modes*/ attr.c_cflag = TTY_DEVICE_SPEED | CS8 | CRTSCTS | CLOCAL | CREAD;
 	/*local   modes*/ attr.c_lflag = 0;
-	if (tcsetattr(tty_fd, TCSAFLUSH, &attr) != 0){	perror("SETUP: tcsetattr() fehlgeschlagen"); exit(1);}
+	if (tcsetattr(tty_fd, TCSAFLUSH, &attr) != 0){	std::perror("SETUP: tcsetattr() fehlgeschlagen"); exit(1);}
 	first_heartbeat = 0;	
 
+#if SENSOR_MODE == REAL
 	srf_fd = open(SRF_DEVICE, O_RDWR);
-	if (srf_fd == -1) {perror("SETUP: " SRF_DEVICE "kann nicht geoeffnet werden."); exit(1);}
-	
+	if (srf_fd == -1) {std::perror("SETUP: " SRF_DEVICE "kann nicht geoeffnet werden."); exit(1);}
+#elif SENSOR_MODE == FAKE
+	srf_fd = 0;
+#endif
 	/*Einstellen der anfaenglichen Messgeschwindigkeiten, Erzeugen der Sensoren*/
 	for (int i = 0; i < SE_COUNT; i++) {
 		srf_speed[i] = SRF_SPEED;
@@ -284,7 +302,7 @@ void setup() {
 		/*Korrektur zur Winkelberechnung*/
 		if (i == 1) align = 2;
 		if (i == 2) align = 1; 
-		srf.push_back(SRF((SE0_ADDRESS + i),srf_fd,align));
+		srf.push_back(SRF((SE0_ADDRESS + i),srf_fd,align,var));
 		nvalue[i] = 0;
 		nvalue2[i] = 0;
 	}
@@ -303,11 +321,11 @@ void setup() {
 	sprintf(log_dir,"log/%d_%d_%d %d:%d:%d",(current_time->tm_year+1900),(current_time->tm_mon+1),(current_time->tm_mday),(current_time->tm_hour),(current_time->tm_min),(current_time->tm_sec));*/
 	char tmp_dir[32];
 	strcpy(tmp_dir,log_dir);
-	fd_112 = fopen(strcat(tmp_dir,"/112"), "a"); fprintf(fd_112,"#TS\tdata\tmean\n"); strcpy(tmp_dir,log_dir);
-	fd_113 = fopen(strcat(tmp_dir,"/113"), "a"); fprintf(fd_113,"#TS\tdata\tmean\n"); strcpy(tmp_dir,log_dir);
-	fd_114 = fopen(strcat(tmp_dir,"/114"), "a"); fprintf(fd_114,"#TS\tdata\tmean\n"); strcpy(tmp_dir,log_dir);
-	fd_115 = fopen(strcat(tmp_dir,"/115"), "a"); fprintf(fd_115,"#TS\tdata\tmean\n"); strcpy(tmp_dir,log_dir);
-	fd_data= fopen(strcat(tmp_dir,"/data"),"a"); fprintf(fd_data,"#TS\troll\tpitch\tyaw\theading\tstate\troll_rad\tpitch_rad\n"); strcpy(tmp_dir,log_dir);
+	fd_112 = std::fopen(strcat(tmp_dir,"/112"), "a"); std::fprintf(fd_112,"#TS\tdata\tmean\n"); strcpy(tmp_dir,log_dir);
+	fd_113 = std::fopen(strcat(tmp_dir,"/113"), "a"); std::fprintf(fd_113,"#TS\tdata\tmean\n"); strcpy(tmp_dir,log_dir);
+	fd_114 = std::fopen(strcat(tmp_dir,"/114"), "a"); std::fprintf(fd_114,"#TS\tdata\tmean\n"); strcpy(tmp_dir,log_dir);
+	fd_115 = std::fopen(strcat(tmp_dir,"/115"), "a"); std::fprintf(fd_115,"#TS\tdata\tmean\n"); strcpy(tmp_dir,log_dir);
+	fd_data= std::fopen(strcat(tmp_dir,"/data"),"a"); std::fprintf(fd_data,"#TS\troll\tpitch\tyaw\theading\tstate\troll_rad\tpitch_rad\n"); strcpy(tmp_dir,log_dir);
 	#endif
 
 	current_pitch_rad = 0;
@@ -331,6 +349,7 @@ void setup() {
 	char target_ip[15];
 	if (desktop_build)	strcpy(target_ip, "192.168.0.180");
 	else			strcpy(target_ip, "192.168.2.170");
+	//strcpy(target_ip, "127.0.0.1");
 	memset(&gcAddr, 0, sizeof(gcAddr));
 	gcAddr.sin_family = AF_INET;
 	gcAddr.sin_addr.s_addr = inet_addr(target_ip);
@@ -357,57 +376,57 @@ void loop() {
 			case READ_MEASURE: {
 				unsigned short index = scheduler[i].param - SE0_ADDRESS;
 				/*Liest die Messdaten des als Parameter uebergebenen Sensors aus und veranlasst erneute Messung*/
+				#if FILTER_MODE == KALMAN
+				float acc = 0;
+				if 	(index == 0) {acc = xacc;	xacc = 0;}
+				else if	(index == 1) {acc = xacc_m;	xacc_m = 0;}
+				else if	(index == 2) {acc = yacc;	yacc = 0;}
+				else if	(index == 3) {acc = yacc_m;	yacc_m = 0;}
+				srf[index].read_it(get_current_millis(),acc);
+				#else
 				srf[index].read_it(get_current_millis());
+				#endif
 				schedule_add((long)srf[index].get_delay(), MEASURE, scheduler[i].param);
-				if(state == HOLD_STILL || state == MEASURE_ENVIRONMENT || state == GET_ANCHOR) {
-					nvalue[index] = 1;
-				}
-				/*if (state == HOLD_STILL || state == HEAD_TO_MIDDLE || state = HTM_DELAY) {
-					nvalue2[scheduler[i].param - SE0_ADDRESS] = 1;
-				}*/
+				if(state == HOLD_STILL || state == MEASURE_ENVIRONMENT || state == GET_ANCHOR) nvalue[index] = 1;
 				new_value = scheduler[i].param;
 				
-				/*Korrektur der Messwerte bei Schieflage des Copters bei glaubhaften Winkeln*/
-				if ((index == 0 || index == 1) && (abs(current_roll_rad) < MAX_ROLL_ANGLE))		srf[index].set_mean((unsigned short)(srf[index].get_mean()*cos(current_roll_rad)));
-				else if ((index == 2 || index == 3) && (abs(current_pitch_rad) < MAX_PITCH_ANGLE))	srf[index].set_mean((unsigned short)(srf[index].get_mean()*cos(current_roll_rad)));
-				
-				/*Korrektur der Messwerte, wenn sich ein Sensor im Nahbereich (< SE_MIN_DISTANCE) befindet*/
-				static unsigned char 	rm_state[SE_COUNT];
-				static short		rm_min[SE_COUNT];
-				if (state != IDLE && state != INIT && state != DELAY) {
-					if (rm_state[index] == 0 && srf[index].get_mean() < SE_MIN_DISTANCE) {
-						rm_state[index] = 1;
-						if (index == 0 || index == 2)	rm_min[index] = srf[index+1].get_mean() - SE_MIN_DIFF;
-						else				rm_min[index] = srf[index-1].get_mean() - SE_MIN_DIFF;
-						srf[index].set_mean(SE_MIN);
-					} else if (rm_state[index] == 1) {
-						if ((index == 0 || index == 2) && srf[index+1].get_mean() < rm_min[index]) {
-							rm_state[index] = 0;
-						} else if ((index == 1 || index == 3) && srf[index-1].get_mean() < rm_min[index]) {
-							rm_state[index] = 0;
-						} else {
+				if (SE_CORRECTION & 2) {
+					/*Korrektur der Messwerte bei Schieflage des Copters bei glaubhaften Winkeln*/
+					if ((index == 0 || index == 1) && (abs(current_roll_rad) < MAX_ROLL_ANGLE))		srf[index].set_mean((unsigned short)(srf[index].get_mean()*cos(current_roll_rad)));
+					else if ((index == 2 || index == 3) && (abs(current_pitch_rad) < MAX_PITCH_ANGLE))	srf[index].set_mean((unsigned short)(srf[index].get_mean()*cos(current_roll_rad)));
+				}
+				if (SE_CORRECTION & 1) {
+					/*Korrektur der Messwerte, wenn sich ein Sensor im Nahbereich (< SE_MIN_DISTANCE) befindet*/
+					static unsigned char 	rm_state[SE_COUNT];
+					static short		rm_min[SE_COUNT];
+					if (state != IDLE && state != INIT && state != DELAY) {
+						if (rm_state[index] == 0 && srf[index].get_mean() < SE_MIN_DISTANCE) {
+							rm_state[index] = 1;
+							if (index == 0 || index == 2)	rm_min[index] = srf[index+1].get_mean() - SE_MIN_DIFF;
+							else				rm_min[index] = srf[index-1].get_mean() - SE_MIN_DIFF;
 							srf[index].set_mean(SE_MIN);
+						} else if (rm_state[index] == 1) {
+							if ((index == 0 || index == 2) && srf[index+1].get_mean() < rm_min[index]) {
+								rm_state[index] = 0;
+							} else if ((index == 1 || index == 3) && srf[index-1].get_mean() < rm_min[index]) {
+								rm_state[index] = 0;
+							} else {
+								srf[index].set_mean(SE_MIN);
+							}
 						}
 					}
-				}
-				if (rm_state[0] == 1 && rm_state[1] == 1) {rm_state[0] = 0; rm_state[1] = 0;}
-				if (rm_state[2] == 1 && rm_state[3] == 1) {rm_state[2] = 0; rm_state[3] = 0;}
-				
-				if (state == HOLD_STILL || state ==  GET_ANCHOR || state == HTM_DELAY) {
-					if (nvalue2[0] == 1 && nvalue2[1] == 1 && nvalue2[2] == 1 && nvalue2[3] == 1) {
-						slam_insert_v((srf[0].get_cm_per_s() + srf[1].get_cm_per_s())/2,(srf[2].get_cm_per_s() + srf[3].get_cm_per_s())/2,current_heading,get_current_millis());
-						nvalue2[0] = 0; nvalue2[1] = 0; nvalue2[2] = 0; nvalue2[3] = 0;
-					}
+					if (rm_state[0] == 1 && rm_state[1] == 1) {rm_state[0] = 0; rm_state[1] = 0;}
+					if (rm_state[2] == 1 && rm_state[3] == 1) {rm_state[2] = 0; rm_state[3] = 0;}
 				}
 				
 				/*Speichert den gelesenen Messwert in der entsprechenden Log-Datei*/
 				#if LOG > 0
-				FILE *fd;
+				std::FILE *fd;
 				if (scheduler[i].param == SE0_ADDRESS) 	fd = fd_112;
 				else if (scheduler[i].param == SE1_ADDRESS) 	fd = fd_113;
 				else if (scheduler[i].param == SE2_ADDRESS) 	fd = fd_114;
 				else						fd = fd_115;
-				fprintf(fd,"%lu\t%u\t%u\n", srf[scheduler[i].param - SE0_ADDRESS].get_msec(), srf[scheduler[i].param - SE0_ADDRESS].get_data(), srf[scheduler[i].param - SE0_ADDRESS].get_mean());
+				std::fprintf(fd,"%lu\t%u\t%u\n", srf[scheduler[i].param - SE0_ADDRESS].get_msec(), srf[scheduler[i].param - SE0_ADDRESS].get_data(), srf[scheduler[i].param - SE0_ADDRESS].get_mean());
 				#endif
 				scheduler[i].task = NOTHING;
 				break;
@@ -415,17 +434,17 @@ void loop() {
 			case SAVE_LOG:
 				/*Sichert die bisher geloggten Daten*/
 				#if LOG > 0
-				fclose(fd_112);
-				fclose(fd_113);
-				fclose(fd_114);
-				fclose(fd_115);
-				fclose(fd_data);
+				std::fclose(fd_112);
+				std::fclose(fd_113);
+				std::fclose(fd_114);
+				std::fclose(fd_115);
+				std::fclose(fd_data);
 				char tmp_dir[32]; strcpy(tmp_dir,log_dir);
-				fd_112 = fopen(strcat(tmp_dir,"/112"), "a"); strcpy(tmp_dir,log_dir);
-				fd_113 = fopen(strcat(tmp_dir,"/113"), "a"); strcpy(tmp_dir,log_dir);
-				fd_114 = fopen(strcat(tmp_dir,"/114"), "a"); strcpy(tmp_dir,log_dir);
-				fd_115 = fopen(strcat(tmp_dir,"/115"), "a"); strcpy(tmp_dir,log_dir);
-				fd_data= fopen(strcat(tmp_dir,"/data"),"a"); strcpy(tmp_dir,log_dir);
+				fd_112 = std::fopen(strcat(tmp_dir,"/112"), "a"); strcpy(tmp_dir,log_dir);
+				fd_113 = std::fopen(strcat(tmp_dir,"/113"), "a"); strcpy(tmp_dir,log_dir);
+				fd_114 = std::fopen(strcat(tmp_dir,"/114"), "a"); strcpy(tmp_dir,log_dir);
+				fd_115 = std::fopen(strcat(tmp_dir,"/115"), "a"); strcpy(tmp_dir,log_dir);
+				fd_data= std::fopen(strcat(tmp_dir,"/data"),"a"); strcpy(tmp_dir,log_dir);
 				schedule_add(LOG_SPEED,SAVE_LOG,0);
 				#endif
 				scheduler[i].task = NOTHING;
@@ -455,18 +474,18 @@ void loop() {
 				/*Schreibt Messwerte und Neigungswinkel auf das Terminal*/
 				char st[16];
 				switch (state) {
-					case INIT: 			sprintf(st, "INIT"); 		break;
-					case MEASURE_ENVIRONMENT: 	sprintf(st, "ME"); 		break;
-					case IDLE: 			sprintf(st, "IDLE"); 		break;
-					case HOLD_STILL: 		sprintf(st, "HOLD_STILL"); 	break;
-					case GET_ALIGNMENT: 		sprintf(st, "GET_ALIGNMENT"); 	break;
-					case GET_ANCHOR: 		sprintf(st, "GET_ANCHOR"); 	break;
-					case DELAY:			sprintf(st, "DELAY");		break;
-					default: 			sprintf(st, "???"); 		break;
+					case INIT: 			std::sprintf(st, "INIT"); 		break;
+					case MEASURE_ENVIRONMENT: 	std::sprintf(st, "ME"); 		break;
+					case IDLE: 			std::sprintf(st, "IDLE"); 		break;
+					case HOLD_STILL: 		std::sprintf(st, "HOLD_STILL"); 	break;
+					case GET_ALIGNMENT: 		std::sprintf(st, "GET_ALIGNMENT"); 	break;
+					case GET_ANCHOR: 		std::sprintf(st, "GET_ANCHOR"); 	break;
+					case DELAY:			std::sprintf(st, "DELAY");		break;
+					default: 			std::sprintf(st, "???"); 		break;
 				}
 					
-				if (roll > 9 || roll < 0) 	printf("roll: %d\tpitch: %d\tyaw: %d\theading: %d\tdhead: %d\tSE0: %d\tSE1: %d\tSE2: %d\tSE3:%d\tstate: %s\n", roll, pitch, yaw, current_heading, desired_heading, srf[0].get_mean(), srf[1].get_mean(), srf[2].get_mean(), srf[3].get_mean(),st);
-				else 				printf("roll: %d\t\tpitch: %d\tyaw: %d\theading: %d\tdhead. %d\tSE0: %d\tSE1: %d\tSE2: %d\tSE3:%d\tstate: %s\n", roll, pitch, yaw, current_heading, desired_heading, srf[0].get_mean(), srf[1].get_mean(), srf[2].get_mean(), srf[3].get_mean(),st);
+				if (roll > 9 || roll < 0) 	std::printf("roll: %d\tpitch: %d\tyaw: %d\theading: %d\tdhead: %d\tSE0: %d\tSE1: %d\tSE2: %d\tSE3:%d\tstate: %s\n", roll, pitch, yaw, current_heading, desired_heading, srf[0].get_mean(), srf[1].get_mean(), srf[2].get_mean(), srf[3].get_mean(),st);
+				else 				std::printf("roll: %d\t\tpitch: %d\tyaw: %d\theading: %d\tdhead. %d\tSE0: %d\tSE1: %d\tSE2: %d\tSE3:%d\tstate: %s\n", roll, pitch, yaw, current_heading, desired_heading, srf[0].get_mean(), srf[1].get_mean(), srf[2].get_mean(), srf[3].get_mean(),st);
 				schedule_add(100,SHOW_ME,0);
 				scheduler[i].task = NOTHING;
 				
@@ -487,7 +506,7 @@ void loop() {
 				sendto(s, buf, len, 0, (struct sockaddr*)&gcAddr, sizeof(struct sockaddr_in));
 				break;
 			}
-			default: if(WARNINGS){perror("LOOP: Unbekannte Aufgabe im Scheduler.");} break; 
+			default: if(WARNINGS){std::perror("LOOP: Unbekannte Aufgabe im Scheduler.");} break; 
 		}
 	}
 
@@ -496,14 +515,14 @@ void loop() {
 	/*Prueft, ob Daten an der seriellen Schnittstelle anliegen*/
 	FD_ZERO(&tty_fdset);
 	FD_SET(tty_fd, &tty_fdset);
-	if (select(tty_fd+1, &tty_fdset, NULL, NULL, &tv) == -1) {perror("LOOP: select() fehlgeschlagen"); exit(1);}
+	if (select(tty_fd+1, &tty_fdset, NULL, NULL, &tv) == -1) {std::perror("LOOP: select() fehlgeschlagen"); exit(1);}
 
 	/*Liest ein einzelnes Byte von der seriellen Schnittstelle und prueft, ob ein Mavlinkpaket vervollstaendigt wurde*/
 	if (FD_ISSET(tty_fd, &tty_fdset)) {
 		static mavlink_message_t msg;
 		static mavlink_status_t status;
 		char c[1];
-		if (read(tty_fd,c,1) == -1) {if(WARNINGS){perror("LOOP: Fehler beim Lesen aus " TTY_DEVICE);}}
+		if (read(tty_fd,c,1) == -1) {if(WARNINGS){std::perror("LOOP: Fehler beim Lesen aus " TTY_DEVICE);}}
 		#if DEBUG_LEVEL > 2
 		printf("%#x\n",c[0]);
 		#endif
@@ -527,7 +546,8 @@ void loop() {
 						std::cout << "State changed from IDLE to INIT.\n";
 						state = INIT;
 						schedule_add(2000,CHANGE_STATE,(int)HOLD_STILL);
-						request_data_stream(MAV_DATA_STREAM_EXTRA2/*VFR_HUD*/,DATA_STREAM_SPEED,1);
+						request_data_stream(MAV_DATA_STREAM_EXTRA2/*Attitude*/,DATA_STREAM_SPEED,1);
+						request_data_stream(MAV_DATA_STREAM_RAW_SENSORS,DATA_STREAM_SPEED,1);
 						init_state = 1;
 					}
 					break;
@@ -552,28 +572,13 @@ void loop() {
 					/*Speichert die Beschleunigungen auf der x- und y-Achse*/
 					mavlink_raw_imu_t raw_imu;
 					mavlink_msg_raw_imu_decode(&msg,&raw_imu);
-					xacc = raw_imu.xacc;
-					yacc = raw_imu.yacc;
-					//slam_insert_acc(xacc,yacc,current_heading,get_current_millis());
-					std::cout << "xacc: " << xacc << " yacc: " << yacc << "\n";
-					break;
-				case MAVLINK_MSG_ID_RC_CHANNELS_RAW:
-					/*Prüft, ob eine Umstellung auf externe Kontrolle erfolgt ist*/
-					/*if (state != IDLE) {break;}
-					mavlink_rc_channels_raw_t rc;
-					mavlink_msg_rc_channels_raw_decode(&msg,&rc);
-					if (desktop_build) init_state = 1; rc.chan5_raw = MODE_SWITCH_RANGE_UP-1;
-					if (init_state && rc.chan5_raw < MODE_SWITCH_RANGE_UP && rc.chan5_raw > MODE_SWITCH_RANGE_DOWN) {
-						std::cout << "State changed from IDLE to INIT.\n";
-						schedule_add(0,CHANGE_STATE,(int)INIT);
-						schedule_add(2000,CHANGE_STATE,(int)HOLD_STILL);
-						request_data_stream(MAV_DATA_STREAM_RC_CHANNELS,0,0);
-						request_data_stream(MAV_DATA_STREAM_EXTRA2,DATA_STREAM_SPEED,1);
-						request_data_stream(MAV_DATA_STREAM_RAW_SENSORS,DATA_STREAM_SPEED,1);
-					}
-					if(rc.chan5_raw > MODE_SWITCH_RANGE_UP || rc.chan5_raw < MODE_SWITCH_RANGE_DOWN) {
-						init_state = 1;
-					}*/
+					
+					/*Additiv, da IMU-Werte schneller als Ultraschallwerte gelesen werden*/
+					xacc += raw_imu.xacc;
+					xacc_m -= raw_imu.xacc;
+					yacc += raw_imu.yacc;
+					yacc_m -= raw_imu.yacc;
+					zacc += raw_imu.zacc;
 					break;
 				default: break;
 			}
@@ -581,9 +586,17 @@ void loop() {
 	}		
 
 	/*Berechnung der vorgeschlagenen Werte fuer roll, pitch und yaw an Hand der neuen Messwerte*/
-	if (state != INIT && !new_value && !new_heading) {/*Wenn keine neuen Daten vorhanden sind -> Abarbeitung überspringen*/return;}
+	if (state != IDLE && state != INIT && !new_value && !new_heading) {/*Wenn keine neuen Daten vorhanden sind -> Abarbeitung überspringen*/return;}
 	switch (state) {	
-		case IDLE: /*Wartet auf Aktivierung der externen Kontrolle*/	break;
+		case IDLE: /*Wartet auf Aktivierung der externen Kontrolle*/
+			
+			std::cout << "State changed from IDLE to INIT.\n";
+			state = INIT;
+			schedule_add(2000,CHANGE_STATE,(int)HOLD_STILL);
+			request_data_stream(MAV_DATA_STREAM_EXTRA2/*VFR_HUD*/,DATA_STREAM_SPEED,1);
+			init_state = 1;
+			
+			break;
 		case INIT:
 			std::cout << "INIT\n";
 			/*Initialisiert Abarbeitung, wenn externe Kontrolle zum ersten Mal aktiviert wurde*/
@@ -775,6 +788,6 @@ void loop() {
 		default:	break;
 	}
 	#if LOG > 0
-	fprintf(fd_data,"%lu\t%d\t%d\t%d\t%d\t%d\t%f\t%f\n", (unsigned long)get_current_millis(), roll, pitch, yaw, current_heading, state, current_roll_rad, current_pitch_rad);
+	std::fprintf(fd_data,"%lu\t%d\t%d\t%d\t%d\t%d\t%f\t%f\n", (unsigned long)get_current_millis(), roll, pitch, yaw, current_heading, state, current_roll_rad, current_pitch_rad);
 	#endif	
 }

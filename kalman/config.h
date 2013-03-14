@@ -14,7 +14,7 @@
 /********************************
  * Sensor-Einstellungen
  * ******************************/
-#define SENSOR_MODE		FAKE		// Aktiviert echte Sensorwerte (REAL) oder gefäschte Sensorwerte (FAKE)
+#define SENSOR_MODE		REAL_VAL	// Aktiviert echte Sensorwerte (REAL) oder gefäschte Sensorwerte (FAKE)
 
 #define SRF_DEVICE		"/dev/i2c-1"	// I2C-BUS
 #define SE_COUNT		4		// Anzahl der SRF-Sensoren (muss ein Teiler von 360 sein) ohne Sensor fuer Hoehenkontrolle 

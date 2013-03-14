@@ -1,8 +1,6 @@
 #ifndef DA_SRF_H
 #define DA_SRF_H
 
-#include "opencv2/video/tracking.hpp"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <linux/i2c-dev.h>
@@ -14,6 +12,7 @@
 #include "defines.h"
 #include "config.h"
 
+#include "opencv2/video/tracking.hpp"
 
 #define BS 	SE_DATA_BUFFER_SIZE
 

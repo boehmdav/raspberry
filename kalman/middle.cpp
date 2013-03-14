@@ -266,7 +266,7 @@ int main (int argc, char* argv[]) {
 	strcpy(tmp_dir,log_dir);
 	if (mkdir(log_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) < 0) {std::perror("Verzeichnis fuer Log-Dateien konnte nicht angelegt werden."); exit(1);}
 	f.open(strcat(tmp_dir,"/config"), std::ios::out);
-	f << "DATA_STREAM_SPEED: " << DATA_STREAM_SPEED << "\nSE_COUNT: " << SE_COUNT << "\nSRF_SPEED: " << SRF_SPEED << "\nENABLED_SENSORS: " << ENABLED_SENSORS << "\nMAX_DISTANCE: " << MAX_DISTANCE << "\nSE_MIN_DISTANCE: " << SE_MIN_DISTANCE << "\nSE_MIN: " << SE_MIN << "\nSE_MIN_DIFF: " << SE_MIN_DIFF << "\nMAX_ROLL_ANGLE: " << MAX_ROLL_ANGLE << "\nMAX_PITCH_ANGLE: " << MAX_PITCH_ANGLE << "\nSE_DATA_BUFFER_SIZE: " << SE_DATA_BUFFER_SIZE << "\nFILTER_MODE: " << FILTER_MODE << "\nSTD_FACTOR: " << STD_FACTOR << "\nMIN_STD: " << MIN_STD << "\nMAX_ROLL: " << max_roll << "\nMAX_PITCH: " << max_pitch << "\nCONST_YAW: " << CONST_YAW << "\nIMAX: " << IMAX << "\nHOLD_STILL_KP: " << hs_p << "\nHOLD_STILL_TN: " << hs_i << "\nHOLD_STILL_TV: " << hs_d << "\nSTILL_FAK: " << STILL_FAK_ROLL << "\nCHECK_STILL_SPEED: " << CHECK_STILL_SPEED << "\nCHECK_STILL_COUNT: " << CHECK_STILL_COUNT; 
+	f << "DATA_STREAM_SPEED: " << DATA_STREAM_SPEED << "\nSE_COUNT: " << SE_COUNT << "\nSRF_SPEED: " << SRF_SPEED << "\nENABLED_SENSORS: " << ENABLED_SENSORS << "\nMAX_DISTANCE: " << MAX_DISTANCE << "\nSE_MIN_DISTANCE: " << SE_MIN_DISTANCE << "\nSE_MIN: " << SE_MIN << "\nSE_MIN_DIFF: " << SE_MIN_DIFF << "\nMAX_ROLL_ANGLE: " << MAX_ROLL_ANGLE << "\nMAX_PITCH_ANGLE: " << MAX_PITCH_ANGLE << "\nSE_DATA_BUFFER_SIZE: " << SE_DATA_BUFFER_SIZE << "\nFILTER_MODE: " << FILTER_MODE << "\nSTD_FACTOR: " << STD_FACTOR << "\nMIN_STD: " << MIN_STD << "\nMAX_ROLL: " << max_roll << "\nMAX_PITCH: " << max_pitch << "\nCONST_YAW: " << CONST_YAW << "\nIMAX: " << IMAX << "\nHOLD_STILL_KP: " << hs_p << "\nHOLD_STILL_TN: " << hs_i << "\nHOLD_STILL_TV: " << hs_d << "\nSTILL_FAK: " << STILL_FAK_ROLL << "\nCHECK_STILL_SPEED: " << CHECK_STILL_SPEED << "\nCHECK_STILL_COUNT: " << CHECK_STILL_COUNT << "\nVARIANCE: " << var; 
 	f.close();
 	#endif
 	setup();
@@ -289,7 +289,7 @@ void setup() {
 	if (tcsetattr(tty_fd, TCSAFLUSH, &attr) != 0){	std::perror("SETUP: tcsetattr() fehlgeschlagen"); exit(1);}
 	first_heartbeat = 0;	
 
-#if SENSOR_MODE == REAL
+#if SENSOR_MODE == REAL_VAL
 	srf_fd = open(SRF_DEVICE, O_RDWR);
 	if (srf_fd == -1) {std::perror("SETUP: " SRF_DEVICE "kann nicht geoeffnet werden."); exit(1);}
 #elif SENSOR_MODE == FAKE
@@ -356,7 +356,7 @@ void setup() {
 	gcAddr.sin_port = htons(14550);
 	
 	/*Einkommentieren, damit regelmäßig Daten auf das Terminal geschrieben werden*/
-	schedule_add(0,SHOW_ME,0);
+	//schedule_add(0,SHOW_ME,0);
 }
 
 /*Mainloop*/
@@ -578,7 +578,12 @@ void loop() {
 					xacc_m -= raw_imu.xacc;
 					yacc += raw_imu.yacc;
 					yacc_m -= raw_imu.yacc;
-					zacc += raw_imu.zacc;
+					zacc += raw_imu.zacc + 1000;
+					break;
+				case MAVLINK_MSG_ID_HUCH_RANGER:
+					mavlink_huch_ranger_t hmsg;
+					mavlink_msg_huch_ranger_decode(&msg,&hmsg);
+					std::cout << "Maxbotix: " << hmsg.ranger1 << "\n";
 					break;
 				default: break;
 			}
@@ -590,11 +595,11 @@ void loop() {
 	switch (state) {	
 		case IDLE: /*Wartet auf Aktivierung der externen Kontrolle*/
 			
-			std::cout << "State changed from IDLE to INIT.\n";
-			state = INIT;
-			schedule_add(2000,CHANGE_STATE,(int)HOLD_STILL);
-			request_data_stream(MAV_DATA_STREAM_EXTRA2/*VFR_HUD*/,DATA_STREAM_SPEED,1);
-			init_state = 1;
+			//std::cout << "State changed from IDLE to INIT.\n";
+			//state = INIT;
+			//schedule_add(2000,CHANGE_STATE,(int)HOLD_STILL);
+			//request_data_stream(MAV_DATA_STREAM_EXTRA2/*VFR_HUD*/,DATA_STREAM_SPEED,1);
+			//init_state = 1;
 			
 			break;
 		case INIT:
@@ -676,7 +681,6 @@ void loop() {
 				roll = 0; pitch = 0; rotation = 0; yaw = rotation_angle_sign*CONST_YAW;
 				send_ext_ctrl();
 			}
-			//if (new_value) slam_insert_measurement(srf[new_value-SE0_ADDRESS].get_mean(),(current_heading + (360/SE_COUNT)*(new_value-SE0_ADDRESS))%360);
 			/*Berechnung der aktuellen Drehung*/
 			if (new_heading) {
 				if (abs(current_heading - old_heading) > 180/SE_COUNT)	rotation += current_heading - old_heading - sign(current_heading - old_heading)*360;
@@ -699,13 +703,6 @@ void loop() {
 			}
 			break;
 		case GET_ALIGNMENT: {
-			/*Bestimme für jeden Sensor die Minimalentfernung der letzten Drehung*/
-			/*short min_v[SE_COUNT];
-			short min_h[SE_COUNT];
-			for (int i = 0; i < SE_COUNT; i++) {
-				min_v[i] = 0;
-				min_h[i] = 0;
-			}*/
 			short min_v = 0;
 			for (int i = 0; i < rotation_angle; i++) {
 				if (min_v < env[(first_heading + rotation_angle_sign*i + 360 + srf[align_se].get_alignment()*(360/SE_COUNT))%360]) {

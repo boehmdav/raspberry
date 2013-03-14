@@ -55,7 +55,7 @@ T sign(T value) {
 
 /*Veranlasst den Sensor mit der Adresse address eine Messung in cm zu starten.*/
 void SRF::measure () {
-#if SENSOR_MODE == REAL
+#if SENSOR_MODE == REAL_VAL
 	if (ioctl(_srf_fd, I2C_SLAVE, _addr) < 0) {perror("MEASURE: Es konnte nicht auf den I2C-Bus zugegriffen werden."); error = SRF_MEASURE_IOCTL; return;}
 	unsigned char buf[] = {0,0x51}; 
 	if (write(_srf_fd, buf, 2) != 2) {if(WARNINGS){perror("MEASURE: Es konnte nicht auf den I2C-Bus geschrieben werden.");} error = SRF_MEASURE_WRITE;}

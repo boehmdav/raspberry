@@ -22,6 +22,14 @@
    #undef SE_DATA_BUFFER_SIZE
    #define SE_DATA_BUFFER_SIZE 1
   #endif //SE_DATA_BUFFER_SIZE
+  #ifndef SENSOR_MODE
+   #warning "SENSOR_MODE not defined, set to FAKE"
+   #define SENSOR_MODE FAKE
+  #elif SENSOR_MODE != FAKE && SENSOR_MODE != REAL_VAL
+   #warning "Unknown SENSOR_MODE, set to FAKE"
+   #undef SENSOR_MODE
+   #define SENSOR_MODE FAKE
+  #endif //SENSOR_MODE
  #endif //DA_SRF_H
 
  #ifdef DA_SLAM_H

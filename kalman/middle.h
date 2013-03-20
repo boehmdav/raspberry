@@ -38,10 +38,12 @@ void loop();
 
 short max_pitch;
 short max_roll;
+short max_thrust;
 unsigned char breakpoint;
 unsigned char desktop_build;
-float var;
-
+float var_s;
+float var_i;
+float var_b;
 
 short rotation_angle;
 short rotation_angle_sign;
@@ -79,17 +81,18 @@ struct timeval tv_start;
 
 /*Variablen fuer die externe Kontrolle*/
 enum states state;
-short roll, pitch, yaw;
+short roll, pitch, yaw, thrust;
 short first_heading;
 short env[360];
 short rotation;
 
 #if LOG > 0
 /*Variablen fuer das Logging*/
-FILE *fd_112, *fd_113, *fd_114, *fd_115, *fd_116, *fd_data;
+FILE *fd_112, *fd_113, *fd_114, *fd_115, *fd_116, *fd_data, *fd_max, *fd_acc;
 char log_dir[32];
 #endif
 
+PID pid_thrust(THRUST_KP,THRUST_TN,THRUST_TV,0);
 PID pid_roll(HOLD_STILL_ROLL_KP,HOLD_STILL_ROLL_TN,HOLD_STILL_ROLL_TV,0);
 PID pid_pitch(HOLD_STILL_PITCH_KP,HOLD_STILL_PITCH_TN,HOLD_STILL_PITCH_TV,0);
 PID pid_yaw(HTM_YAW_KP,HTM_YAW_TN,HTM_YAW_TV,0);

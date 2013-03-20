@@ -18,11 +18,15 @@
 
 class SRF : cv::Mat, cv::KalmanFilter{
 public:
-	SRF(unsigned short addr, int srf_fd, unsigned char alignment, float var);	// Konstruktor
+	SRF(unsigned short addr, int srf_fd, unsigned char alignment, float var_sonic, float var_imu, float var_baro);	// Konstruktor
 	void measure();							// Fordert den Sensor auf, eine Messung zu starten 
 	short read_it(unsigned long msec);				// Fordert den Sensor auf, die Daten zu lesen
-	short read_it(unsigned long msec, float acc);			// Fordert den Sensor auf, die Daten zu lesen (Nur benötigt für Kalman-Filterung)
+	short read_it(unsigned long msec, short acc);			// Fordert den Sensor auf, die Daten zu lesen (Nur benötigt für Kalman-Filterung)
+	short read_it_extern(unsigned long msec, short reading);		// Erweiterung für Messwerte, die extern gelesen werden
+	short read_it_extern(unsigned long msec, short reading, int baro, short acc);	// Erweiterung für Messwerte, die extern gelesen werden (Nur benötigt für Kalman-Filterung)
 
+	
+	
 	void reset();							// Löscht die gespeicherten Daten
 									// !!! Filter wird für die nächsten SE_DATA_BUFFER_SIZE-Messungen falsche Werte liefern!
 	
@@ -31,6 +35,8 @@ public:
 	unsigned short 	get_mean()	{return mean;}
 	void		set_mean(unsigned short m) {mean = m;}
 	void		set_acc(float acc) {_acc = acc;}
+	void 		set_baro(int baro) {_baro = baro;}
+	int		get_baro()	{return _baro;}
 	unsigned short 	get_old_mean()	{return old_mean;}
 	unsigned short 	get_data()	{return data[(data_pos-1+SE_DATA_BUFFER_SIZE)%SE_DATA_BUFFER_SIZE];}
 	short 		get_mean_diff()	{return (short)(mean - old_mean);}
@@ -55,8 +61,11 @@ private:
 	short data[SE_DATA_BUFFER_SIZE];
 	short data_pos;
 	
-	float _acc;
-	float variance;
+	short _acc;
+	int _baro;
+	float variance_sonic;
+	float variance_imu;
+	float variance_baro;
 	
 	unsigned short delay;
 	unsigned char  state;

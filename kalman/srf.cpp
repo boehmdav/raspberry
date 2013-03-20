@@ -14,23 +14,38 @@ T between(T value, T min, T max) {
 	else 			{return value;}
 }
 
-SRF::SRF(unsigned short addr, int srf_fd, unsigned char align, float var) :
-_addr(addr),alignment(align),mean(0),tv_msec(0),old_mean(0),old_tv_msec(0),_srf_fd(srf_fd),error(SRF_OK),data_pos(0),_acc(0),variance(var),delay(0),state(0)
+SRF::SRF(unsigned short addr, int srf_fd, unsigned char align, float sonic_var, float imu_var, float bar_var) :
+_addr(addr),alignment(align),mean(0),tv_msec(0),old_mean(0),old_tv_msec(0),_srf_fd(srf_fd),error(SRF_OK),data_pos(0),_acc(0),_baro(0),variance_sonic(sonic_var),variance_imu(imu_var),variance_baro(bar_var),delay(0),state(0)
 {
 	for(int i = 0; i < BS; i++) data[i] = MAX_DISTANCE;
 	#if FILTER_MODE == KALMAN
-	KF.init(3, 2, 0,CV_32F);
 	kstate = cv::Mat::zeros(3, 1, CV_32F); /*(r, v, a)^T*/
 	processNoise = cv::Mat::zeros(3, 1, CV_32F);
-	measurement = cv::Mat::zeros(2, 1, CV_32F); /*(r,a)^T*/
-	
-	/*Initialisierung des Kalman-Filters*/
-	KF.measurementMatrix = *(cv::Mat_<float>(2, 3) << 1, 0, 0, 0, 0, 1);
+	if (bar_var == 0) {
+		/*Ohne Barometer*/
+		KF.init(3, 2, 0, CV_32F);
+		measurement = cv::Mat::zeros(2, 1, CV_32F); /*(r,a)^T*/
+		/*Initialisierung des Kalman-Filters*/
+		KF.measurementMatrix = *(cv::Mat_<float>(2, 3) << 	1, 0, 0,
+									0, 0, 1);
+		KF.measurementNoiseCov = *(cv::Mat_<float>(2,2) << 	variance_sonic,0,
+									0,variance_imu);
+	} else {
+		/*Mit Barometer*/
+		KF.init(3, 3, 0, CV_32F);
+		measurement = cv::Mat::zeros(3, 1, CV_32F); /*(r, b, a)^T*/
+		
+		/*Initialisierung des Kalman-Filters*/
+		KF.measurementMatrix = *(cv::Mat_<float>(3, 3) << 	1, 0, 0,
+									1, 0, 0,
+									0, 0, 1);
+		KF.measurementNoiseCov = *(cv::Mat_<float>(3,3) << 	variance_sonic,0,0,
+									0,variance_baro,0,
+									0,0,variance_imu);
+	}
 	cv::setIdentity(KF.processNoiseCov, cv::Scalar::all(1e-5));
-	cv::setIdentity(KF.measurementNoiseCov, cv::Scalar::all(1e-1));
 	cv::setIdentity(KF.errorCovPost, cv::Scalar::all(1));
-	
-	cv::randn( kstate, cv::Scalar::all(0), cv::Scalar::all(variance) );
+	cv::randn( kstate, cv::Scalar::all(0), cv::Scalar::all(0) );
 	#endif
 }
 
@@ -110,19 +125,29 @@ short SRF::validate() {
 #if FILTER_MODE == KALMAN
 	float dt = (tv_msec - old_tv_msec)*1e-3; /*Zeitdifferenz in Sekunden*/
 	/*Update der Übergangsmatrix des Kalman-Filters*/
-	KF.transitionMatrix = *(cv::Mat_<float>(3, 3) << 1, dt, dt*dt/2, 0, 1, dt, 0, 0, 1);
-	
+	KF.transitionMatrix = *(cv::Mat_<float>(3, 3) << 	1, dt, dt*dt/2,
+								0, 1, dt,
+								0, 0, 1);
 	/*Prädiktion und Statusübergang*/
 	cv::Mat prediction = KF.predict();
 	cv::randn( processNoise, cv::Scalar(0), cv::Scalar::all(sqrt(KF.processNoiseCov.at<float>(0, 0))));
 	kstate = KF.transitionMatrix*kstate + processNoise;
 	
-	double predictPos = prediction.at<float>(0); /*in m*/
-	
+	double predictPos = prediction.at<float>(0); /*Prädiktion der Entfernung in m*/
 	/*Korrektur an Hand der Messwerte*/
-	measurement.at<float>(0,0) = data[0]*1e-2; /*Entfernung ins Metern*/
-	measurement.at<float>(0,1) = _acc*9.80665e-3; /*Beschleunigung in m/s²*/
-	
+	if (variance_baro == 0) {
+		measurement.at<float>(0,0) = (float)data[0]*1e-2; /*Entfernung in m*/
+		measurement.at<float>(0,1) = (float)_acc*9.80665e-3; /*Beschleunigung in m/s²*/
+	} else {
+		measurement.at<float>(0,0) = (float)data[0]*1e-2; /*Halbe Entfernung in m*/
+		measurement.at<float>(0,1) = (float)_baro*1e-2;
+		measurement.at<float>(0,2) = (float)_acc*9.80665e-3; /*Beschleunigung in m/s²*/
+		float scale = between<float>((_baro-400)/200,0,1);
+		KF.measurementNoiseCov = *(cv::Mat_<float>(3,3) << 	(scale+variance_sonic),0,0,
+									0,(1-scale+variance_baro),0,
+									0,0,variance_imu);
+		//std::cout << "MeasurementNoiseCov = "<< std::endl << " "  << KF.measurementNoiseCov << std::endl << std::endl;
+	}
 	KF.correct(measurement);
 	
 	return between<short>((short)(100*predictPos)/*in cm*/, MIN_DISTANCE, MAX_DISTANCE);
@@ -176,6 +201,22 @@ short SRF::validate() {
 	
 }
 
+
+short SRF::read_it_extern(unsigned long msec, short reading) {
+	data[data_pos] = min<short>(reading,MAX_DISTANCE);
+	data_pos = (data_pos+1)%BS;
+	old_mean = mean; old_tv_msec = tv_msec;
+	mean = validate();
+	tv_msec = msec;
+	return mean;
+}
+
+short SRF::read_it_extern(unsigned long msec, short reading, int baro, short acc) {
+	_acc = acc;
+	_baro = baro;
+	return read_it_extern(msec,reading);
+}
+
 short SRF::read_it(unsigned long msec) {
 	data[data_pos] = min<short>(read_measure(),MAX_DISTANCE);
 	data_pos = (data_pos+1)%BS;
@@ -185,7 +226,7 @@ short SRF::read_it(unsigned long msec) {
 	return mean;
 }
 
-short SRF::read_it(unsigned long msec, float acc) {
+short SRF::read_it(unsigned long msec, short acc) {
 	_acc = acc;
 	return read_it(msec);
 }

@@ -66,7 +66,7 @@
 #define MIN_STD			10		// Kleinste erlaubte Abweichung von der Standardabweichung (MEAN-Filter)
 #define VARIANCE_S		0.001f		// Varianz der Ultraschallsensoren für den Kalman-Filter
 #define VARIANCE_I		0.018f		// Varianz der Imu-Daten für den Kalman-Filter
-#define VARIANCE_B		0.016f		// Varianz der Barometer-Daten für den Kalman-Filter
+#define VARIANCE_B		0.008f		// Varianz der Barometer-Daten für den Kalman-Filter
 
 /********************************
  * EXT_CTRL-Einstellungen
@@ -75,7 +75,7 @@
 
 #define MAX_ROLL		1000		// Groeszter moeglicher Wert fuer roll		
 #define MAX_PITCH		MAX_ROLL	// Groeszter moeglicher Wert fuer pitch
-#define MAX_THRUST		100
+#define MAX_THRUST		500
 
 #define CONST_YAW		20		// Konstante Drehgeschwindigkeit 
 #define HTM_DELAY_TIME		500		// Zeit zwischen Statuswechsel von HEAD_TO_MIDDLE zu HOLD_STILL in ms

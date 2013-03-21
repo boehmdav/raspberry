@@ -345,7 +345,7 @@ void setup() {
 	}
 	
 	/*Maxbotix*/
-	srf.push_back(SRF(0,0,0,var_s,var_i,var_b));
+	srf.push_back(SRF(0,0,0,var_s,var_i,0));
 
 	/*signal handler für SIGINT (Strg+C) registrieren*/
 	signal(SIGINT, signal_callback_handler);

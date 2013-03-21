@@ -139,18 +139,24 @@ short SRF::validate() {
 		measurement.at<float>(0,0) = (float)data[0]*1e-2; /*Entfernung in m*/
 		measurement.at<float>(0,1) = (float)_acc*9.80665e-3; /*Beschleunigung in m/s²*/
 	} else {
-		measurement.at<float>(0,0) = (float)data[0]*1e-2; /*Halbe Entfernung in m*/
+		measurement.at<float>(0,0) = (float)data[0]*1e-2; /*Entfernung in m*/
 		measurement.at<float>(0,1) = (float)_baro*1e-2;
 		measurement.at<float>(0,2) = (float)_acc*9.80665e-3; /*Beschleunigung in m/s²*/
-		float scale = between<float>((_baro-400)/200,0,1);
+		float scale = 1*between<float>((float)(_baro-400)/200,0,1);
 		KF.measurementNoiseCov = *(cv::Mat_<float>(3,3) << 	(scale+variance_sonic),0,0,
 									0,(1-scale+variance_baro),0,
 									0,0,variance_imu);
 		//std::cout << "MeasurementNoiseCov = "<< std::endl << " "  << KF.measurementNoiseCov << std::endl << std::endl;
+		//std::cout << "_baro: " << _baro << "\n";
+		//std::cout << "Scale: " << scale << " var_s: " << variance_sonic << " var_b: " << variance_baro << " scale+var_s: " << scale+variance_sonic << " 100-scale+var_b: " << 100-scale+variance_baro << "\n"; 
 	}
 	KF.correct(measurement);
 	
-	return between<short>((short)(100*predictPos)/*in cm*/, MIN_DISTANCE, MAX_DISTANCE);
+	if (variance_baro == 0) {
+		return between<short>((short)(100*predictPos)/*in cm*/, MIN_DISTANCE, MAX_DISTANCE);
+	} else {
+		return (short)(100*predictPos);
+	}
 	return 0;
 #elif SE_DATA_BUFFER_SIZE == 1
 	return data[0];

@@ -600,7 +600,7 @@ void loop() {
 						schedule_add(2000,CHANGE_STATE,(int)HOLD_STILL);
 						request_data_stream(MAV_DATA_STREAM_EXTRA2/*Attitude & Ranger*/,DATA_STREAM_SPEED,1);
 						request_data_stream(MAV_DATA_STREAM_RAW_SENSORS,DATA_STREAM_SPEED,1);
-						request_data_stream(MAV_DATA_STREAM_RAW_CONTROLLER,5,1);
+						//request_data_stream(MAV_DATA_STREAM_RAW_CONTROLLER,5,1);
 						init_state = 1;
 					}
 					break;
@@ -657,12 +657,17 @@ void loop() {
 						int baro_tmp = (hmsg.ranger3 << 16) + hmsg.ranger2;
 						static unsigned char first_baro;
 						static int first_baro_val;
-						if (!first_baro && hmsg.ranger1 > 400) {
-							first_baro_val = baro_tmp;
+						if (first_baro && srf[SE_COUNT].get_mean() < 200) {
+							first_baro = 0;
+							//std::cout << "fb0\n";
+						}
+						if (!first_baro && hmsg.ranger1 > 300) {
+							first_baro_val = baro_tmp-300;
 							first_baro = 1;
+							//std::cout << "fb1" << " fbv: " << first_baro_val << "\n";
 						}
 						srf[SE_COUNT].read_it_extern(get_current_millis(),hmsg.ranger1,(baro_tmp - first_baro_val),zacc);
-						thrust = between<short>(pid_thrust.get(CONST_HEIGHT - srf[SE_COUNT].get_mean(),srf[SE_COUNT].get_msec_diff()),-max_thrust,max_thrust);
+						thrust = between<short>(pid_thrust.get(CONST_HEIGHT - srf[SE_COUNT].get_mean(),srf[SE_COUNT].get_msec_diff()),0,max_thrust);
 						zacc = 0;
 						send_ext_ctrl();
 						#if LOG > 0

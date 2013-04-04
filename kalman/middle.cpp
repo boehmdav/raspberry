@@ -28,7 +28,7 @@ void send_ext_ctrl() {
 	/*Sendet die aktuell vorgeschlagenen Werte fuer roll und pitch an den Copter*/
 	mavlink_message_t ex_msg;
 	uint8_t ex_buf[MAVLINK_MAX_PACKET_LEN];
-	mavlink_msg_huch_ext_ctrl_pack(0, MAV_COMP_ID_IMU, &ex_msg, TARGET_SYSTEM, TARGET_COMPONENT, 0, roll, pitch, yaw, thrust);
+	mavlink_msg_huch_ext_ctrl_pack(0, MAV_COMP_ID_IMU, &ex_msg, TARGET_SYSTEM, TARGET_COMPONENT, 8, roll, pitch, yaw, thrust);
 	uint16_t ex_len = mavlink_msg_to_send_buffer(ex_buf, &ex_msg);
 	if (write(tty_fd, ex_buf, ex_len) != ex_len) {if(WARNINGS){std::perror("LOOP: Es konnten keine Daten fuer die externe Kontrolle gesendet werden.");}}
 	#endif	
@@ -49,7 +49,11 @@ void signal_callback_handler(int signum) {
 	std::fclose(fd_113);
 	std::fclose(fd_114);
 	std::fclose(fd_115);
+	std::fclose(fd_max);
+	std::fclose(fd_acc);
+	std::fclose(fd_pid_thrust);
 	std::fclose(fd_data);
+	std::fclose(fd_rc);
 	exit(signum);
 }
 
@@ -57,6 +61,7 @@ int main (int argc, char* argv[]) {
 	max_pitch = MAX_PITCH; 
 	max_roll = MAX_ROLL;
 	max_thrust = MAX_THRUST;
+	min_thrust = MIN_THRUST;
 	breakpoint = 0;
 	desktop_build = 0;
 	var_s = VARIANCE_S;
@@ -68,6 +73,11 @@ int main (int argc, char* argv[]) {
 	float htm_p = ANC_ROLL_KP;
 	float htm_i = ANC_ROLL_TN;
 	float htm_d = ANC_ROLL_TV;
+	float thr_p = THRUST_KP;
+	float thr_i = THRUST_TN;
+	float thr_d = THRUST_TV;
+	short thr_imax = THRUST_IMAX;
+	float ival = 0;
 	for(int i=1;i<argc;i++) {
 		if (!strcmp("--pitch",argv[i]) || !strcmp("--p",argv[i])) {
 			if ((i+1) < argc) {
@@ -102,6 +112,56 @@ int main (int argc, char* argv[]) {
 				}
 			} else {
 				std::cout << "Warning: --roll needs an additional value. Using default value (" << MAX_ROLL << ").\n"; 
+			}
+		} else if (!strcmp("--thrust",argv[i]) || !strcmp("--t",argv[i])) {
+			if ((i+1) < argc) {
+				if (!strcmp("0",argv[i+1])) {
+					max_thrust = 0;
+					i++;
+				} else {
+					max_thrust = atoi(argv[i+1]);
+					if (max_thrust == 0) {
+						std::cout << argv[i+1] << " is not a valid value for --thrust. Using default value (" << MAX_THRUST << ").\n";
+						max_thrust = MAX_THRUST;
+					} else {
+						i++;
+					}
+				}
+			} else {
+				std::cout << "Warning: --thrust needs an additional value. Using default value (" << MAX_THRUST << ").\n"; 
+			}
+		} else if (!strcmp("--mthrust",argv[i]) || !strcmp("--mt",argv[i])) {
+			if ((i+1) < argc) {
+				if (!strcmp("0",argv[i+1])) {
+					min_thrust = 0;
+					i++;
+				} else {
+					min_thrust = atoi(argv[i+1]);
+					if (min_thrust == 0) {
+						std::cout << argv[i+1] << " is not a valid value for --mthrust. Using default value (" << MIN_THRUST << ").\n";
+						min_thrust = MIN_THRUST;
+					} else {
+						i++;
+					}
+				}
+			} else {
+				std::cout << "Warning: --mthrust needs an additional value. Using default value (" << MIN_THRUST << ").\n"; 
+			}
+		} else if (!strcmp("--istart",argv[i])) {
+			if ((i+1) < argc) {
+				if (!strcmp("0",argv[i+1])) {
+					ival = 0;
+					i++;
+				} else {
+					ival = atoi(argv[i+1]);
+					if (ival == 0) {
+						std::cout << argv[i+1] << " is not a valid value for --istart. Using default value (" << 0 << ").\n";
+					} else {
+						i++;
+					}
+				}
+			} else {
+				std::cout << "Warning: --istart needs an additional value. Using default value (" << 0 << ").\n"; 
 			}
 		} else if(!strcmp("--hsp",argv[i])) {
 			if ((i+1) < argc) {
@@ -205,6 +265,74 @@ int main (int argc, char* argv[]) {
 			} else {
 				std::cout << "Warning: --ancd needs an additional value. Using default value (" << ANC_ROLL_TV << ").\n"; 
 			}
+		} else if(!strcmp("--thrp",argv[i])) {
+			if ((i+1) < argc) {
+				if (!strcmp("0",argv[i+1])) {
+					thr_p = 0;
+					i++;
+				} else {
+					thr_p = atof(argv[i+1]);
+					if (thr_p == 0) {
+						std::cout << argv[i+1] << " is not a valid value for --thrp. Using default value (" << THRUST_KP << ").\n";
+						thr_p = THRUST_KP;
+					} else {
+						i++;
+					}
+				}
+			} else {
+				std::cout << "Warning: --thrp needs an additional value. Using default value (" << THRUST_KP << ").\n"; 
+			}
+		} else if(!strcmp("--thri",argv[i])) {
+			if ((i+1) < argc) {
+				if (!strcmp("0",argv[i+1])) {
+					thr_i = 0;
+					i++;
+				} else {
+					thr_i = atof(argv[i+1]);
+					if (thr_i == 0) {
+						std::cout << argv[i+1] << " is not a valid value for --thri. Using default value (" << THRUST_TN << ").\n";
+						thr_i = THRUST_TN;
+					} else {
+						i++;
+					}
+				}
+			} else {
+				std::cout << "Warning: --thri needs an additional value. Using default value (" << THRUST_TN << ").\n"; 
+			}
+		} else if(!strcmp("--thrd",argv[i])) {
+			if ((i+1) < argc) {
+				if (!strcmp("0",argv[i+1])) {
+					thr_d = 0;
+					i++;
+				} else {
+					thr_d = atof(argv[i+1]);
+					if (thr_d == 0) {
+						std::cout << argv[i+1] << " is not a valid value for --thrd. Using default value (" << THRUST_TV << ").\n";
+						thr_d = THRUST_TV;
+					} else {
+						i++;
+					}
+				}
+			} else {
+				std::cout << "Warning: --thrd needs an additional value. Using default value (" << THRUST_TV << ").\n"; 
+			}
+		} else if(!strcmp("--imax",argv[i])) {
+			if ((i+1) < argc) {
+				if (!strcmp("0",argv[i+1])) {
+					thr_imax = 0;
+					i++;
+				} else {
+					thr_imax = atof(argv[i+1]);
+					if (thr_imax == 0) {
+						std::cout << argv[i+1] << " is not a valid value for --imax. Using default value (" << THRUST_IMAX << ").\n";
+						thr_imax = THRUST_IMAX;
+					} else {
+						i++;
+					}
+				}
+			} else {
+				std::cout << "Warning: --thrd needs an additional value. Using default value (" << THRUST_IMAX << ").\n"; 
+			}
 		} else if(!strcmp("--vars",argv[i])) {
 			if ((i+1) < argc) {
 				if (!strcmp("0",argv[i+1])) {
@@ -277,7 +405,24 @@ int main (int argc, char* argv[]) {
 				std::cout << "Warning: Desktop-Build!\n";
 		} else {
 			if (strcmp("--?",argv[i]) && strcmp("--help",argv[i]) && strcmp("--h",argv[i])) std::cout << "Unknown Input " << argv[i] << "\n";
-			std::cout << "Valid inputs are: \n --pitch VAL \t Sets maximum pitch to (short)VAL \n --roll VAL \t Sets maximum roll to (short)VAL \n --hsp VAL \t Sets P-value of the hs-controller to (float)VAL \n --hsi VAL \t Sets I-value of the hs-controller to (float)VAL \n --hsd VAL \t Sets D-value of the hs-controller to (float)VAL \n --ancp VAL \t Sets P-value of the anc-controller to (float)VAL \n --anci VAL \t Sets I-value of the anc-controller to (float)VAL\n --ancd VAL \t Sets D-value of the anc-controller to (float)VAL \n --b VAL \t Sets a breakpoint (0 = None, 1 = HS, 2 = ANC, 3 = ANC with yaw)\n --db \t\t Triggers the desktop-mode (no ext_ctrl-messages and mode switch set to ext_ctrl)\n";
+			std::cout << "Valid inputs are: \n --pitch VAL \t Sets maximum pitch to (short)VAL \n"
+			<< " --roll VAL \t Sets maximum roll to (short)VAL \n"
+			<< " --thrust VAL \t Sets maximum thrust to (short)VAL \n"
+			<< " --mthrust VAL \t Sets minimum thrust to (short)VAL \n"
+			<< " --istart VAL \t Sets the start-value of the thrust-controller to (float)VAL) \n"
+			<< " --thrp VAL \t Sets P-value of the thrust-controller to (float)VAL \n"
+			<< " --thri VAL \t Sets I-value of the thrust-controller to (float)VAL \n"
+			<< " --thrd VAL \t Sets D-value of the thrust-controller to (float)VAL \n"
+			<< " --vari VAL \t Sets the imu-variance of the Kalman filter to (float)VAL \n"
+			<< " --vars VAL \t Sets the sonar-variance of the Kalman filter to (float)VAL \n"
+			<< " --hsp VAL \t Sets P-value of the hs-controller to (float)VAL \n"
+			<< " --hsi VAL \t Sets I-value of the hs-controller to (float)VAL \n"
+			<< " --hsd VAL \t Sets D-value of the hs-controller to (float)VAL \n" 
+			<< " --ancp VAL \t Sets P-value of the anc-controller to (float)VAL \n"
+			<< " --anci VAL \t Sets I-value of the anc-controller to (float)VAL\n"
+			<< " --ancd VAL \t Sets D-value of the anc-controller to (float)VAL \n"
+			<< " --b VAL \t Sets a breakpoint (0 = None, 1 = HS, 2 = ANC, 3 = ANC with yaw)\n"
+			<< " --db \t\t Triggers the desktop-mode (no ext_ctrl-messages and mode switch set to ext_ctrl)\n";
 			exit(1);
 		}
 	}
@@ -285,7 +430,9 @@ int main (int argc, char* argv[]) {
 	pid_pitch.set(hs_p,hs_i,hs_d);
 	pid_roll_anc.set(htm_p,htm_i,htm_d);
 	pid_pitch_anc.set(htm_p,htm_i,htm_d);
-	
+	pid_thrust.set(thr_p,thr_i,thr_d);
+	pid_thrust.set_imax(thr_imax);
+	pid_thrust.set_ival(ival);
 	#if LOG == 1
 	/*Config dump*/
 	char tmp_dir[32];
@@ -303,7 +450,38 @@ int main (int argc, char* argv[]) {
 	strcpy(tmp_dir,log_dir);
 	if (mkdir(log_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) < 0) {std::perror("Verzeichnis fuer Log-Dateien konnte nicht angelegt werden."); exit(1);}
 	f.open(strcat(tmp_dir,"/config"), std::ios::out);
-	f << "DATA_STREAM_SPEED: " << DATA_STREAM_SPEED << "\nSE_COUNT: " << SE_COUNT << "\nSRF_SPEED: " << SRF_SPEED << "\nENABLED_SENSORS: " << ENABLED_SENSORS << "\nMAX_DISTANCE: " << MAX_DISTANCE << "\nSE_MIN_DISTANCE: " << SE_MIN_DISTANCE << "\nSE_MIN: " << SE_MIN << "\nSE_MIN_DIFF: " << SE_MIN_DIFF << "\nMAX_ROLL_ANGLE: " << MAX_ROLL_ANGLE << "\nMAX_PITCH_ANGLE: " << MAX_PITCH_ANGLE << "\nSE_DATA_BUFFER_SIZE: " << SE_DATA_BUFFER_SIZE << "\nFILTER_MODE: " << FILTER_MODE << "\nSTD_FACTOR: " << STD_FACTOR << "\nMIN_STD: " << MIN_STD << "\nMAX_ROLL: " << max_roll << "\nMAX_PITCH: " << max_pitch << "\nCONST_YAW: " << CONST_YAW << "\nIMAX: " << IMAX << "\nHOLD_STILL_KP: " << hs_p << "\nHOLD_STILL_TN: " << hs_i << "\nHOLD_STILL_TV: " << hs_d << "\nSTILL_FAK: " << STILL_FAK_ROLL << "\nCHECK_STILL_SPEED: " << CHECK_STILL_SPEED << "\nCHECK_STILL_COUNT: " << CHECK_STILL_COUNT << "\nVARIANCE_S: " << var_s << "\nVARIANCE_I" << var_i; 
+	f << "DATA_STREAM_SPEED: " << DATA_STREAM_SPEED
+	<< "\nSE_COUNT: " << SE_COUNT
+	<< "\nSRF_SPEED: " << SRF_SPEED
+	<< "\nENABLED_SENSORS: " << ENABLED_SENSORS
+	<< "\nMAX_DISTANCE: " << MAX_DISTANCE
+	<< "\nSE_MIN_DISTANCE: " << SE_MIN_DISTANCE
+	<< "\nSE_MIN: " << SE_MIN
+	<< "\nSE_MIN_DIFF: "<< SE_MIN_DIFF
+	<< "\nMAX_ROLL_ANGLE: " << MAX_ROLL_ANGLE
+	<< "\nMAX_PITCH_ANGLE: " << MAX_PITCH_ANGLE
+	<< "\nSE_DATA_BUFFER_SIZE: " << SE_DATA_BUFFER_SIZE
+	<< "\nFILTER_MODE: " << FILTER_MODE
+	<< "\nSTD_FACTOR: " << STD_FACTOR
+	<< "\nMIN_STD: " << MIN_STD
+	<< "\nMAX_ROLL: " << max_roll
+	<< "\nMAX_PITCH: " << max_pitch
+	<< "\nCONST_YAW: " << CONST_YAW
+	<< "\nIMAX: " << IMAX
+	<< "\nTHRUST_IMAX: " << thr_imax
+	<< "\nHOLD_STILL_KP: " << hs_p
+	<< "\nHOLD_STILL_TN: " << hs_i
+	<< "\nHOLD_STILL_TV: " << hs_d
+	<< "\nSTILL_FAK: " << STILL_FAK_ROLL
+	<< "\nCHECK_STILL_SPEED: " << CHECK_STILL_SPEED
+	<< "\nCHECK_STILL_COUNT: " << CHECK_STILL_COUNT
+	<< "\nVARIANCE_S: " << var_s
+	<< "\nVARIANCE_I: " << var_i
+	<< "\nTHRUST_KP: " << thr_p
+	<< "\nTHRUST_TN: " << thr_i
+	<< "\nTHRUST_TV: " << thr_d
+	<< "\nMIN_THRUST: " << min_thrust
+	<< "\nMAX_THRUST: " << max_thrust;
 	f.close();
 	#endif
 	setup();
@@ -314,6 +492,7 @@ int main (int argc, char* argv[]) {
 /*Initialisierung*/
 void setup() {
 	/*Öffnen der seriellen Schnitstelle TTY_DEVICE*/
+#if SENSOR_MODE == REAL_VAL
 	tty_fd = open(TTY_DEVICE, O_RDWR);
 	if (tty_fd == -1) {std::perror("SETUP: " TTY_DEVICE " kann nicht geoeffnet werden."); exit(1);}
 	
@@ -324,8 +503,8 @@ void setup() {
 	/*control modes*/ attr.c_cflag = TTY_DEVICE_SPEED | CS8 | CRTSCTS | CLOCAL | CREAD;
 	/*local   modes*/ attr.c_lflag = 0;
 	if (tcsetattr(tty_fd, TCSAFLUSH, &attr) != 0){	std::perror("SETUP: tcsetattr() fehlgeschlagen"); exit(1);}
+#endif
 	first_heartbeat = 0;	
-
 #if SENSOR_MODE == REAL_VAL
 	srf_fd = open(SRF_DEVICE, O_RDWR);
 	if (srf_fd == -1) {std::perror("SETUP: " SRF_DEVICE "kann nicht geoeffnet werden."); exit(1);}
@@ -345,7 +524,7 @@ void setup() {
 	}
 	
 	/*Maxbotix*/
-	srf.push_back(SRF(0,0,0,var_s,var_i,0));
+	srf.push_back(SRF(0,0,0,var_s,var_i,var_b));
 
 	/*signal handler für SIGINT (Strg+C) registrieren*/
 	signal(SIGINT, signal_callback_handler);
@@ -355,10 +534,6 @@ void setup() {
 	for (int i = 0; i < MAX_TASKS; i++) 	scheduler[i].task = NOTHING;
 	/*Erzeugen des Log-Verzeichnis und Log-Dateien*/
 	#if LOG > 0
-	/*time_t current_timestamp = time(0);
-	tm *current_time;
-	current_time = localtime(&current_timestamp);
-	sprintf(log_dir,"log/%d_%d_%d %d:%d:%d",(current_time->tm_year+1900),(current_time->tm_mon+1),(current_time->tm_mday),(current_time->tm_hour),(current_time->tm_min),(current_time->tm_sec));*/
 	char tmp_dir[32];
 	strcpy(tmp_dir,log_dir);
 	fd_112 = std::fopen(strcat(tmp_dir,"/112"), "a"); std::fprintf(fd_112,"#TS\tdata\tmean\n"); strcpy(tmp_dir,log_dir);
@@ -367,13 +542,23 @@ void setup() {
 	fd_115 = std::fopen(strcat(tmp_dir,"/115"), "a"); std::fprintf(fd_115,"#TS\tdata\tmean\n"); strcpy(tmp_dir,log_dir);
 	fd_max = std::fopen(strcat(tmp_dir,"/max"), "a"); std::fprintf(fd_max,"#TS\tdata\tmean\tbaro\n"); strcpy(tmp_dir,log_dir);
 	fd_acc = std::fopen(strcat(tmp_dir,"/acc"), "a"); std::fprintf(fd_acc,"#TS\txacc\tyacc\tzacc\n"); strcpy(tmp_dir,log_dir);
-	fd_data= std::fopen(strcat(tmp_dir,"/data"),"a"); std::fprintf(fd_data,"#TS\troll\tpitch\tyaw\theading\tstate\troll_rad\tpitch_rad\n"); strcpy(tmp_dir,log_dir);
+	fd_rc = std::fopen(strcat(tmp_dir,"/rc"), "a"); std::fprintf(fd_rc,"#TS\trc_chan1_in\trc_chan2_in\trc_chan5_in\n"); strcpy(tmp_dir,log_dir);
+	fd_data= std::fopen(strcat(tmp_dir,"/data"),"a"); std::fprintf(fd_data,"#TS\troll\tpitch\tyaw\tthrust\theading\tstate\troll_rad\tpitch_rad\n"); strcpy(tmp_dir,log_dir);
+	fd_pid_thrust = std::fopen(strcat(tmp_dir,"/pid_thrust"), "a"); std::fprintf(fd_pid_thrust,"#TS\tP\tI\tD\n"); strcpy(tmp_dir,log_dir);
 	#endif
 
 	current_pitch_rad = 0;
 	current_roll_rad = 0;
-	current_heading = 0;	
+	current_heading = 0;
+#if SENSOR_MODE == REAL_VAL
 	state = IDLE;
+#else
+	state = INIT;
+	schedule_add(2000,CHANGE_STATE,(int)HOLD_STILL);
+	request_data_stream(MAV_DATA_STREAM_EXTRA2/*Attitude & Ranger*/,DATA_STREAM_SPEED,1);
+	request_data_stream(MAV_DATA_STREAM_RAW_SENSORS,DATA_STREAM_SPEED,1);
+	request_data_stream(MAV_DATA_STREAM_RAW_CONTROLLER,DATA_STREAM_SPEED,1);
+#endif
 	roll = 0; pitch = 0; yaw = 0;
 	still = 0;
 	first_heading = -1;
@@ -392,6 +577,7 @@ void setup() {
 	//if (desktop_build)	strcpy(target_ip, "192.168.0.180");
 	//else			strcpy(target_ip, "192.168.2.170");
 	strcpy(target_ip, "192.168.2.170");
+	//strcpy(target_ip, "127.0.0.1");
 	memset(&gcAddr, 0, sizeof(gcAddr));
 	gcAddr.sin_family = AF_INET;
 	gcAddr.sin_addr.s_addr = inet_addr(target_ip);
@@ -482,6 +668,8 @@ void loop() {
 				std::fclose(fd_115);
 				std::fclose(fd_max);
 				std::fclose(fd_acc);
+				std::fclose(fd_rc);
+				std::fclose(fd_pid_thrust);
 				std::fclose(fd_data);
 				char tmp_dir[32]; strcpy(tmp_dir,log_dir);
 				fd_112 = std::fopen(strcat(tmp_dir,"/112"), "a"); strcpy(tmp_dir,log_dir);
@@ -490,6 +678,8 @@ void loop() {
 				fd_115 = std::fopen(strcat(tmp_dir,"/115"), "a"); strcpy(tmp_dir,log_dir);
 				fd_max = std::fopen(strcat(tmp_dir,"/max"), "a"); strcpy(tmp_dir,log_dir);
 				fd_acc = std::fopen(strcat(tmp_dir,"/acc"), "a"); strcpy(tmp_dir,log_dir);
+				fd_pid_thrust = std::fopen(strcat(tmp_dir,"/pid_thrust"), "a"); strcpy(tmp_dir,log_dir);
+				fd_rc = std::fopen(strcat(tmp_dir,"/rc"), "a"); strcpy(tmp_dir,log_dir);
 				fd_data= std::fopen(strcat(tmp_dir,"/data"),"a"); strcpy(tmp_dir,log_dir);
 				schedule_add(LOG_SPEED,SAVE_LOG,0);
 				#endif
@@ -530,12 +720,12 @@ void loop() {
 					default: 			std::sprintf(st, "???"); 		break;
 				}
 					
-				if (roll > 9 || roll < 0) 	std::printf("roll: %d\tpitch: %d\tyaw: %d\tthrust: %d\theading: %d\tdhead: %d\tSE0: %d\tSE1: %d\tSE2: %d\tSE3:%d\tMax:%d\tstate: %s\n", roll, pitch, yaw, thrust, current_heading, desired_heading, srf[0].get_mean(), srf[1].get_mean(), srf[2].get_mean(), srf[3].get_mean(),srf[4].get_mean(),st);
-				else 				std::printf("roll: %d\t\tpitch: %d\tyaw: %d\tthrust: %d\theading: %d\tdhead. %d\tSE0: %d\tSE1: %d\tSE2: %d\tSE3:%d\tMax:%d\tstate: %s\n", roll, pitch, yaw, thrust, current_heading, desired_heading, srf[0].get_mean(), srf[1].get_mean(), srf[2].get_mean(), srf[3].get_mean(),srf[4].get_mean(),st);
+				if (roll > 9 || roll < 0) 	std::printf("roll: %d\tpitch: %d\tyaw: %d\tthrust: %d\theading: %d\tSE0: %d\tSE1: %d\tSE2: %d\tSE3:%d\tMax:%d\tstate: %s\tival: %f\n", roll, pitch, yaw, thrust, current_heading, srf[0].get_mean(), srf[1].get_mean(), srf[2].get_mean(), srf[3].get_mean(),srf[4].get_mean(),st,pid_thrust.get_ival());
+				else 				std::printf("roll: %d\t\tpitch: %d\tyaw: %d\tthrust: %d\theading: %d\tSE0: %d\tSE1: %d\tSE2: %d\tSE3:%d\tMax:%d\tstate: %s\tival: %f\n", roll, pitch, yaw, thrust, current_heading, srf[0].get_mean(), srf[1].get_mean(), srf[2].get_mean(), srf[3].get_mean(),srf[4].get_mean(),st,pid_thrust.get_ival());
 				schedule_add(50,SHOW_ME,0);
 				scheduler[i].task = NOTHING;
 				
-				/*Mavlinkkommunikation mit QGroundcontrol (basierend auf Based on http://qgroundcontrol.org/dev/mavlink_linux_integration_tutorial)*/
+				/*Mavlinkkommunikation mit QGroundcontrol (basierend auf http://qgroundcontrol.org/dev/mavlink_linux_integration_tutorial)*/
 				mavlink_message_t msg;
 				uint16_t len;
 				uint8_t buf[MAVLINK_MAX_PACKET_LEN];
@@ -547,10 +737,10 @@ void loop() {
 					len = mavlink_msg_to_send_buffer(buf, &msg);
 					sendto(s, buf, len, 0, (struct sockaddr*)&gcAddr, sizeof(struct sockaddr_in));
 				}
-				mavlink_msg_debug_vect_pack(0,0,&msg,"SE0",0,xacc,srf[0].get_mean(),srf[0].get_data());
+				mavlink_msg_debug_vect_pack(0,0,&msg,"SE0",0,tmp_rc,srf[0].get_mean(),srf[0].get_data());
 				len = mavlink_msg_to_send_buffer(buf, &msg);
 				sendto(s, buf, len, 0, (struct sockaddr*)&gcAddr, sizeof(struct sockaddr_in));
-				mavlink_msg_debug_vect_pack(0,0,&msg,"MAX",0,srf[4].get_baro(),srf[4].get_mean(),srf[4].get_data());
+				mavlink_msg_debug_vect_pack(0,0,&msg,"MAX",0,thrust,srf[4].get_mean(),srf[4].get_data());
 				len = mavlink_msg_to_send_buffer(buf, &msg);
 				sendto(s, buf, len, 0, (struct sockaddr*)&gcAddr, sizeof(struct sockaddr_in));
 				/*mavlink_msg_debug_vect_pack(0,0,&msg,"SE0",0,xacc,yacc,zacc);
@@ -597,10 +787,11 @@ void loop() {
 					if (state == IDLE && (hb.custom_mode == 13 /*EXT_CTRL*/ || desktop_build)) {
 						std::cout << "State changed from IDLE to INIT.\n";
 						state = INIT;
+						new_value = SE_COUNT;
 						schedule_add(2000,CHANGE_STATE,(int)HOLD_STILL);
 						request_data_stream(MAV_DATA_STREAM_EXTRA2/*Attitude & Ranger*/,DATA_STREAM_SPEED,1);
 						request_data_stream(MAV_DATA_STREAM_RAW_SENSORS,DATA_STREAM_SPEED,1);
-						//request_data_stream(MAV_DATA_STREAM_RAW_CONTROLLER,5,1);
+						request_data_stream(MAV_DATA_STREAM_RAW_CONTROLLER,DATA_STREAM_SPEED,1);
 						init_state = 1;
 					}
 					break;
@@ -646,9 +837,9 @@ void loop() {
 				case MAVLINK_MSG_ID_RC_CHANNELS_SCALED:
 					mavlink_rc_channels_scaled_t rc;
 					mavlink_msg_rc_channels_scaled_decode(&msg,&rc);
-					
-					/*Additiv, da IMU-Werte schneller als Ultraschallwerte gelesen werden*/
-					//std::cout << " 3: " << rc.chan3_scaled << " 5: " << rc.chan5_scaled << " 6: " << rc.chan6_scaled << " 7: " << rc.chan7_scaled << " 8: " << rc.chan8_scaled << "\n";
+					tmp_rc = rc.chan1_scaled;
+					std::fprintf(fd_rc,"%lu\t%d\t%d\t%d\n", get_current_millis(),rc.chan1_scaled, rc.chan2_scaled, rc.chan5_scaled);
+					//std::cout<< " 1: " << rc.chan1_scaled<< " 2: " << rc.chan2_scaled << " 3: " << rc.chan3_scaled<< " 4: " << rc.chan4_scaled << " 5: " << rc.chan5_scaled << " 6: " << rc.chan6_scaled << " 7: " << rc.chan7_scaled << " 8: " << rc.chan8_scaled << "\n";
 					break;
 				case MAVLINK_MSG_ID_HUCH_RANGER:
 					if (1) {
@@ -659,19 +850,18 @@ void loop() {
 						static int first_baro_val;
 						if (first_baro && srf[SE_COUNT].get_mean() < 200) {
 							first_baro = 0;
-							//std::cout << "fb0\n";
 						}
 						if (!first_baro && hmsg.ranger1 > 300) {
 							first_baro_val = baro_tmp-300;
 							first_baro = 1;
-							//std::cout << "fb1" << " fbv: " << first_baro_val << "\n";
 						}
 						srf[SE_COUNT].read_it_extern(get_current_millis(),hmsg.ranger1,(baro_tmp - first_baro_val),zacc);
-						thrust = between<short>(pid_thrust.get(CONST_HEIGHT - srf[SE_COUNT].get_mean(),srf[SE_COUNT].get_msec_diff()),0,max_thrust);
+						thrust = between<short>(min_thrust + pid_thrust.get(CONST_HEIGHT - srf[SE_COUNT].get_mean(),srf[SE_COUNT].get_msec_diff()),min_thrust,max_thrust);
 						zacc = 0;
 						send_ext_ctrl();
 						#if LOG > 0
 						std::fprintf(fd_max,"%lu\t%u\t%u\t%d\n", srf[SE_COUNT].get_msec(), srf[SE_COUNT].get_data(), srf[SE_COUNT].get_mean(),(baro_tmp-first_baro_val));
+						std::fprintf(fd_pid_thrust,"%lu\t%f\t%f\t%f\n", get_current_millis(), pid_thrust.get_pval(CONST_HEIGHT - srf[SE_COUNT].get_mean()), pid_thrust.get_ival(), (-1)*pid_thrust.get_dval());
 						#endif
 					}
 					break;
@@ -682,7 +872,7 @@ void loop() {
 
 	/*Berechnung der vorgeschlagenen Werte fuer roll, pitch und yaw an Hand der neuen Messwerte*/
 	if (state != IDLE && state != INIT && !new_value && !new_heading) {/*Wenn keine neuen Daten vorhanden sind -> Abarbeitung überspringen*/return;}
-	switch (state) {	
+	switch (state) {
 		case IDLE: /*Wartet auf Aktivierung der externen Kontrolle*/
 			break;
 		case INIT:
@@ -728,7 +918,7 @@ void loop() {
 						std::cout << "Set_Point " << i << ":" << set_point[i] << "\n";
 					}
 				}
-				/*Veranlasst den Copter auf Grundlage der Änderungen der Messwerte still zu stehen*/
+				/*Veranlasst den Copter still zu stehen*/
 				if (!new_value) break;
 				if (nvalue[0] == 1 && nvalue[1] == 1) {
 					if (srf[0].get_mean() == SE_MIN)	roll = between<short>(pid_roll.get(0 - srf[1].get_mean() + set_point[1],srf[1].get_msec_diff()),-max_roll,max_roll);
@@ -868,6 +1058,6 @@ void loop() {
 		default:	break;
 	}
 	#if LOG > 0
-	std::fprintf(fd_data,"%lu\t%d\t%d\t%d\t%d\t%d\t%f\t%f\n", (unsigned long)get_current_millis(), roll, pitch, yaw, current_heading, state, current_roll_rad, current_pitch_rad);
+	if (state != INIT && state != IDLE) std::fprintf(fd_data,"%lu\t%d\t%d\t%d\t%d\t%d\t%d\t%f\t%f\n", (unsigned long)get_current_millis(), roll, pitch, yaw, thrust, current_heading, state, current_roll_rad, current_pitch_rad);
 	#endif	
 }

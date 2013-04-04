@@ -40,7 +40,10 @@ public:
 	unsigned short 	get_old_mean()	{return old_mean;}
 	unsigned short 	get_data()	{return data[(data_pos-1+SE_DATA_BUFFER_SIZE)%SE_DATA_BUFFER_SIZE];}
 	short 		get_mean_diff()	{return (short)(mean - old_mean);}
-	short 		get_msec_diff()	{return (short)(tv_msec - old_tv_msec);}
+	short 		get_msec_diff()	{
+		if (old_tv_msec == 0) return 0;
+		return (short)(tv_msec - old_tv_msec);
+	}
 	float		get_cm_per_s()	{if (tv_msec - old_tv_msec == 0) {return 0;} else {return (float)(mean - old_mean)/((float)(tv_msec - old_tv_msec)/1000);}}
 	unsigned short 	get_delay()	{return delay;}
 	unsigned char	get_alignment()	{return alignment;}

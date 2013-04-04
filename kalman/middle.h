@@ -39,6 +39,7 @@ void loop();
 short max_pitch;
 short max_roll;
 short max_thrust;
+short min_thrust;
 unsigned char breakpoint;
 unsigned char desktop_build;
 float var_s;
@@ -88,16 +89,18 @@ short rotation;
 
 #if LOG > 0
 /*Variablen fuer das Logging*/
-FILE *fd_112, *fd_113, *fd_114, *fd_115, *fd_116, *fd_data, *fd_max, *fd_acc;
+FILE *fd_112, *fd_113, *fd_114, *fd_115, *fd_116, *fd_data, *fd_max, *fd_acc, *fd_pid_thrust, *fd_rc;
 char log_dir[32];
 #endif
 
-PID pid_thrust(THRUST_KP,THRUST_TN,THRUST_TV,0);
-PID pid_roll(HOLD_STILL_ROLL_KP,HOLD_STILL_ROLL_TN,HOLD_STILL_ROLL_TV,0);
-PID pid_pitch(HOLD_STILL_PITCH_KP,HOLD_STILL_PITCH_TN,HOLD_STILL_PITCH_TV,0);
-PID pid_yaw(HTM_YAW_KP,HTM_YAW_TN,HTM_YAW_TV,0);
-PID pid_roll_anc(ANC_ROLL_KP,ANC_ROLL_TN,ANC_ROLL_TV,ANCHOR_DISTANCE);
-PID pid_pitch_anc(ANC_PITCH_KP,ANC_PITCH_TN,ANC_PITCH_TV,ANCHOR_DISTANCE);
+int tmp_rc;
+
+PID pid_thrust(THRUST_KP,THRUST_TN,THRUST_TV,0,THRUST_IMAX,0);
+PID pid_roll(HOLD_STILL_ROLL_KP,HOLD_STILL_ROLL_TN,HOLD_STILL_ROLL_TV,0,IMAX,-IMAX);
+PID pid_pitch(HOLD_STILL_PITCH_KP,HOLD_STILL_PITCH_TN,HOLD_STILL_PITCH_TV,0,IMAX,-IMAX);
+PID pid_yaw(HTM_YAW_KP,HTM_YAW_TN,HTM_YAW_TV,0,IMAX,-IMAX);
+PID pid_roll_anc(ANC_ROLL_KP,ANC_ROLL_TN,ANC_ROLL_TV,ANCHOR_DISTANCE,IMAX,-IMAX);
+PID pid_pitch_anc(ANC_PITCH_KP,ANC_PITCH_TN,ANC_PITCH_TV,ANCHOR_DISTANCE,IMAX,-IMAX);
 unsigned char init_state;
 
 template <typename T>

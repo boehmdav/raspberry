@@ -1,6 +1,7 @@
 #include "srf.h"
 
 #include <iostream>
+#include <fstream>
 
 template <typename T>
 T between(T value, T min, T max) {
@@ -84,8 +85,8 @@ short SRF::read_measure() {
 #if SENSOR_MODE == REAL_VAL
 	if (ioctl(_srf_fd, I2C_SLAVE, _addr) < 0) {perror("READ_MEASURE: Es konnte nicht auf den I2C-Bus zugegriffen werden."); error = SRF_READ_IOCTL;}
 	unsigned char buf[2]; buf[0] = 0x02;
-	if (write(_srf_fd, buf, 1) != 1) {if(WARNINGS){perror("READ_MEASURE: Es konnte nicht auf den I2C-Bus geschrieben werden.");} error = SRF_READ_WRITE; delay = 5; return mean;}
-	if (read(_srf_fd, buf, 2) < 1)  {if(WARNINGS){perror("READ_MEASURE: Es konnte nicht vom I2C-Bus gelesen werden.");} error = SRF_READ_READ; delay = 5; return mean;}
+	if (write(_srf_fd, buf, 1) != 1) {if(WARNINGS){std::perror("READ_MEASURE: Es konnte nicht auf den I2C-Bus geschrieben werden.");} error = SRF_READ_WRITE; delay = 5; return mean;}
+	if (read(_srf_fd, buf, 2) < 1)  {if(WARNINGS){std::perror("READ_MEASURE: Es konnte nicht vom I2C-Bus gelesen werden.");} error = SRF_READ_READ; delay = 5; return mean;}
 	delay = 0;
 	short val = (buf[0]<<8) + buf[1];
 	/*if (val < SE_MIN_DISTANCE) {state = 1;}
@@ -106,6 +107,31 @@ short SRF::read_measure() {
 	static int i;
 	unsigned short ret_val = sin(RAD(i))*MAX_DISTANCE/2 + MAX_DISTANCE/2;
 	i++;
+	#elif SE_FAKE_MODE == DATA
+	unsigned short ret_val = 0;
+	static std::string line;
+	/*else if (_addr == 113) data_file = "log/122/113";
+	else if (_addr == 114) data_file = "log/122/114";
+	else if (_addr == 115) data_file = "log/122/115";
+	else if (_addr == 0) data_file = "log/122/max";*/
+	//else return 0;
+	if (_addr == 112) {
+		static std::ifstream myfile ("log/122/112");
+		if (myfile.is_open()) {
+			std::getline (myfile,line);
+			//std::cout << line << std::endl;
+			if (line.substr(0,1).compare("#")) {
+				int tmp1,tmp2;
+				tmp1 = line.find("\t");
+				if (tmp1 != -1) tmp2 = line.find("\t",tmp1+1);
+				if (tmp2 != -1) ret_val=atoi(line.substr(tmp1+1,(tmp2-tmp1-1)).c_str());
+			}
+		} else {
+			std::cout << "Can't open file\n";
+		}
+	} else {
+		return 0;
+	}
 	#else	
 	unsigned short ret_val = rand()%(MAX_DISTANCE - MIN_DISTANCE) + MIN_DISTANCE;
 	#endif
@@ -139,6 +165,7 @@ short SRF::validate() {
 		measurement.at<float>(0,0) = (float)data[0]*1e-2; /*Entfernung in m*/
 		measurement.at<float>(0,1) = (float)_acc*9.80665e-3; /*Beschleunigung in m/s²*/
 	} else {
+		std::cout << "Hello World!\n";
 		measurement.at<float>(0,0) = (float)data[0]*1e-2; /*Entfernung in m*/
 		measurement.at<float>(0,1) = (float)_baro*1e-2;
 		measurement.at<float>(0,2) = (float)_acc*9.80665e-3; /*Beschleunigung in m/s²*/

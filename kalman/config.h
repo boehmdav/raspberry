@@ -14,7 +14,7 @@
 /********************************
  * Sensor-Einstellungen
  * ******************************/
-#define SENSOR_MODE		REAL_VAL	// Aktiviert echte Sensorwerte (REAL) oder gefäschte Sensorwerte (FAKE)
+#define SENSOR_MODE		REAL_VAL	// Aktiviert echte Sensorwerte (REAL_VAL) oder gefäschte Sensorwerte (FAKE)
 
 #define SRF_DEVICE		"/dev/i2c-1"	// I2C-BUS
 #define SE_COUNT		4		// Anzahl der SRF-Sensoren (muss ein Teiler von 360 sein) ohne Sensor für Höhenkontrolle 
@@ -36,13 +36,13 @@
 #define MAX_ROLL_ANGLE		0.25f		// Größter glaubhafter Winkel zur Sensorkorrektur im Bogenmaß
 #define MAX_PITCH_ANGLE		MAX_ROLL_ANGLE
 
-#define CONST_HEIGHT		50
+#define CONST_HEIGHT		80
 
 /********************************
  * Einstellungen zur Erzeugung gefälschter Sensorwerte
  * Nur aktiv, wenn SENSOR_MODE auf FAKE gesetzt ist
  * ******************************/
-#define SE_FAKE_MODE		SIN		// Art der gefälschten Messwerte (CONST für konstant, LIN für lineare Werte, RAND für zufällige Werte, SIN für Sinusschwingungen, DATA zum Einlesen alter Logs)
+#define SE_FAKE_MODE		DATA		// Art der gefälschten Messwerte (CONST für konstant, LIN für lineare Werte, RAND für zufällige Werte, SIN für Sinusschwingungen, DATA zum Einlesen alter Logs)
 #define SE_FAKE_MODE_START_VAL	50		// Startwert der gefälschten Messwerte
 
 #define SE_FAKE_MODE_LIN_CHANGE_PROB	1	// Wahrscheinlichkeit in Prozent, dass der Anstieg die Richtung wechselt
@@ -66,7 +66,7 @@
 #define MIN_STD			10		// Kleinste erlaubte Abweichung von der Standardabweichung (MEAN-Filter)
 #define VARIANCE_S		0.001f		// Varianz der Ultraschallsensoren für den Kalman-Filter
 #define VARIANCE_I		0.018f		// Varianz der Imu-Daten für den Kalman-Filter
-#define VARIANCE_B		0.008f		// Varianz der Barometer-Daten für den Kalman-Filter
+#define VARIANCE_B		0/*0.008f*/		// Varianz der Barometer-Daten für den Kalman-Filter
 
 /********************************
  * EXT_CTRL-Einstellungen
@@ -75,7 +75,8 @@
 
 #define MAX_ROLL		1000		// Groeszter moeglicher Wert fuer roll		
 #define MAX_PITCH		MAX_ROLL	// Groeszter moeglicher Wert fuer pitch
-#define MAX_THRUST		500
+#define MAX_THRUST		610
+#define MIN_THRUST		520
 
 #define CONST_YAW		20		// Konstante Drehgeschwindigkeit 
 #define HTM_DELAY_TIME		500		// Zeit zwischen Statuswechsel von HEAD_TO_MIDDLE zu HOLD_STILL in ms
@@ -84,10 +85,11 @@
  * Regler-Einstellungen
  * ******************************/
 #define IMAX			500
+#define THRUST_IMAX		500
 
-#define THRUST_KP		1
-#define THRUST_TN		0
-#define THRUST_TV		0
+#define THRUST_KP		0.399779f
+#define THRUST_TN		0.0148838f
+#define THRUST_TV		0.306536f
 
 #define HOLD_STILL_ROLL_KP	4			// Verstaerkung
 #define HOLD_STILL_ROLL_TN	0			// Nachtsellzeit
